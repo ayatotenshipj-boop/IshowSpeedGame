@@ -36,7 +36,7 @@ from core.game_state import GameState
 from core.state_manager import GameScreen, StateManager
 from core.updater import Updater
 from core import leaderboard
-from entities.tower import TOWER_TYPES, Speed6, Speed7
+from entities.tower import SPRITE_SIZE, TOWER_TYPES, Speed6, Speed7
 from entities.wave_manager import WAVES
 from map.game_map import GameMap
 from map.placement_grid import PlacementGrid
@@ -514,6 +514,14 @@ def main() -> None:
             if state.tempo_inicio == 0.0 and state.enemies:
                 state.tempo_inicio = time.time()
 
+            # Efeito do Speed7: usa dt REAL (áudio toca em tempo de relógio, não
+            # afetado pelo 2×). Ao zerar, reverte sprites/mapa e retoma a música.
+            if state.speed7_effect_timer > 0.0:
+                state.speed7_effect_timer -= dt
+                if state.speed7_effect_timer <= 0.0:
+                    state.speed7_effect_timer = 0.0
+                    _encerrar_efeito_speed7(state, assets, audio)
+
             # Checa derrota.
             if state.lives <= 0:
                 # Restaura música de fundo (corta o loop de suspense do Speed7).
@@ -648,15 +656,18 @@ def _processar_acao_painel(acao: str, state: GameState, grid, assets, audio) -> 
 def _ativar_habilidade_speed7(state: GameState, assets, audio) -> None:
     """Habilidade global do Speed7: hitkill de todos os inimigos + efeitos.
 
-    - Toca `killthatboy.mp3` SOBREPOSTO (canal próprio, cortado em 1s) sem
-      interromper a música de fundo; em paralelo faz crossfade para a música
-      de suspense — tudo gerido pelo AudioManager.
+    - Toca `killthatboy.mp3` SOBREPOSTO (canal próprio, cortado em 1s).
+    - Pausa a música de fundo e toca o suspense UMA vez; ao terminar, a música
+      retoma de onde parou (ver `_encerrar_efeito_speed7`).
     - Elimina todos os inimigos em campo (recompensa, kills e flash roxo).
-    - Troca o sprite de todas as torres por `speed8` (56×56).
-    - Deixa o mapa acinzentado.
+    - Troca o sprite de todas as torres por `speed8` (56×56) e acinzenta o mapa
+      enquanto o suspense toca; tudo volta ao normal quando o timer zera.
     """
     audio.ativar_killthatboy()
-    audio.ativar_suspense()
+    # Suspense uma vez; o timer define quanto dura o efeito visual (= duração do
+    # áudio, com fallback se o mixer estiver indisponível).
+    duracao = audio.tocar_suspense_once()
+    state.speed7_effect_timer = duracao if duracao > 0 else 6.0
 
     for inimigo in state.enemies:
         state.coins += inimigo.reward
@@ -681,6 +692,20 @@ def _ativar_habilidade_speed7(state: GameState, assets, audio) -> None:
             torre.sprite = novo
 
     state.map_grayscale = True
+
+
+def _encerrar_efeito_speed7(state: GameState, assets, audio) -> None:
+    """Reverte o efeito do Speed7: música retoma, sprites e mapa ao normal."""
+    audio.encerrar_suspense()  # retoma a música de fundo de onde parou
+    state.map_grayscale = False
+    # Restaura o sprite original de cada torre (recarrega pelo asset_name).
+    for torre in state.towers:
+        try:
+            torre.sprite = pygame.transform.smoothscale(
+                assets.get(torre.asset_name), (SPRITE_SIZE, SPRITE_SIZE)
+            )
+        except KeyError:
+            pass  # asset ausente: mantém o sprite atual
 
 
 def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict]) -> None:

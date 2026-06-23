@@ -1,10 +1,10 @@
 {
-  "version": "1.0.6",
+  "version": "1.0.7",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "- Correção de SSL no executável (leaderboard e auto-update agora conectam)\n- Leaderboard online global\n- Cronômetro de speedrun",
+  "changelog": "- Speed7: suspense toca uma vez e a música retoma de onde parou\n- Sprites e mapa voltam ao normal após a habilidade",
   "download_url": {
-    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.0.6/SpeedVsLabubu-Linux",
-    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.0.6/SpeedVsLabubu-Windows.exe"
+    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.0.7/SpeedVsLabubu-Linux",
+    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.0.7/SpeedVsLabubu-Windows.exe"
   },
   "files": []
 }

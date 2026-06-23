@@ -121,6 +121,36 @@ class AudioManager:
         """Atalho: crossfade da música atual para a música de suspense."""
         self.crossfade_to(MUSICA_SUSPENSE, SUSPENSE_CROSSFADE)
 
+    def tocar_suspense_once(self) -> float:
+        """Pausa a música de fundo e toca o suspense UMA vez (sem loop).
+
+        Retorna a duração do suspense em segundos (0.0 se indisponível). A música
+        de fundo é PAUSADA (não parada) para retomar de onde parou em
+        `encerrar_suspense`.
+        """
+        if not self._disponivel or self._sfx_suspense is None:
+            return 0.0
+        # Pausa a música de fundo (mantém a posição para retomar depois).
+        pygame.mixer.music.pause()
+        # Toca o suspense uma única vez num canal dedicado.
+        if self._cross_channel is not None:
+            self._cross_channel.stop()
+        self._cross_active = False  # não usar o fade-in de crossfade
+        self._cross_channel = self._sfx_suspense.play(loops=0)
+        if self._cross_channel is not None:
+            self._cross_channel.set_volume(self._music_volume)
+        return self._sfx_suspense.get_length()
+
+    def encerrar_suspense(self) -> None:
+        """Para o suspense (se ainda tocar) e RETOMA a música de fundo do ponto."""
+        if not self._disponivel:
+            return
+        if self._cross_channel is not None:
+            self._cross_channel.stop()
+            self._cross_channel = None
+        self._cross_active = False
+        pygame.mixer.music.unpause()
+
     # ------------------------------------------------------------------ #
     # Volume da música (Configurações)
     # ------------------------------------------------------------------ #

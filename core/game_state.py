@@ -31,6 +31,9 @@ class GameState:
     kills: int = 0  # inimigos eliminados por dano
     map_grayscale: bool = False  # ativado pela habilidade do Speed7
     speed_multiplier: float = 1.0  # velocidade do jogo (1× ou 2×)
+    # Efeito temporário do Speed7: enquanto > 0, sprites em speed8 + mapa cinza
+    # + suspense tocando. Ao zerar, tudo volta ao normal e a música retoma.
+    speed7_effect_timer: float = 0.0
     # Cronômetro da partida (leaderboard). tempo_inicio = time.time() no 1º
     # spawn da onda 1; tempo_vitoria = duração total em segundos ao vencer.
     tempo_inicio: float = 0.0
