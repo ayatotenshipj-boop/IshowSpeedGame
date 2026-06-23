@@ -19,7 +19,7 @@ jobs:
       - name: Instalar dependências
         run: |
           pip uninstall pygame -y || true
-          pip install pygame-ce pygame-gui pyinstaller Pillow
+          pip install pygame-ce pygame-gui pyinstaller Pillow certifi
       - name: Compilar Linux
         run: |
           pyinstaller --onefile --windowed \
@@ -44,7 +44,7 @@ jobs:
         shell: bash
         run: |
           pip uninstall pygame -y || true
-          pip install pygame-ce pygame-gui pyinstaller Pillow
+          pip install pygame-ce pygame-gui pyinstaller Pillow certifi
       - name: Compilar Windows
         run: |
           pyinstaller --onefile --windowed `

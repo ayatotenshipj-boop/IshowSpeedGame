@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import shutil
+import ssl
 import stat
 import subprocess
 import sys
@@ -26,6 +27,27 @@ from typing import Callable
 from config.settings import RAIZ_PROJETO
 
 logger = logging.getLogger(__name__)
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """Contexto SSL que funciona no exe PyInstaller (sem CA do sistema).
+
+    Sem isto, todo HTTPS dentro do exe falha com CERTIFICATE_VERIFY_FAILED.
+    Usa o CA bundle do `certifi` (incluído no build); fallback sem verificação
+    se faltar — preferindo um update funcional a um update quebrado.
+    """
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:  # noqa: BLE001
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+
+
+_SSL_CTX = _ssl_context()
 
 # --- Configuração do repositório (público) ------------------------------- #
 GITHUB_USER = "ayatotenshipj-boop"
@@ -126,7 +148,7 @@ class Updater:
             req = urllib.request.Request(
                 VERSION_URL, headers={"User-Agent": "SpeedVsLabubu-Updater"}
             )
-            with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            with urllib.request.urlopen(req, timeout=_TIMEOUT, context=_SSL_CTX) as resp:
                 remoto = json.loads(resp.read().decode("utf-8"))
         except Exception as erro:  # noqa: BLE001 — rede nunca pode crashar o jogo
             logger.warning("Falha ao verificar atualização: %s", erro)
@@ -168,7 +190,7 @@ class Updater:
                 req = urllib.request.Request(
                     url, headers={"User-Agent": "SpeedVsLabubu-Updater"}
                 )
-                with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+                with urllib.request.urlopen(req, timeout=_TIMEOUT, context=_SSL_CTX) as resp:
                     dados = resp.read()
                 destino.parent.mkdir(parents=True, exist_ok=True)
                 with destino.open("wb") as f:
@@ -220,17 +242,31 @@ class Updater:
         exe_path = _exe_path()
         tmp_path = exe_path.parent / (exe_path.name + ".new")
 
-        def reporthook(count: int, block_size: int, total_size: int) -> None:
-            if progress_cb is not None and total_size > 0:
-                baixados = min(count * block_size, total_size)
+        def _reportar(baixados: int, total: int) -> None:
+            if progress_cb is not None:
                 try:
-                    progress_cb(baixados, total_size)
+                    progress_cb(baixados, total)
                 except Exception as erro:  # noqa: BLE001 — UI não derruba o download
                     logger.warning("Erro no callback de progresso: %s", erro)
 
         try:
             tmp_path.parent.mkdir(parents=True, exist_ok=True)
-            urllib.request.urlretrieve(url, tmp_path, reporthook)
+            # Stream com contexto SSL próprio (urlretrieve não aceita context, e
+            # no exe PyInstaller a verificação padrão falha sem CA do sistema).
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "SpeedVsLabubu-Updater"}
+            )
+            with urllib.request.urlopen(req, context=_SSL_CTX) as resp:
+                total = int(resp.headers.get("Content-Length", 0))
+                baixados = 0
+                with tmp_path.open("wb") as f:
+                    while True:
+                        bloco = resp.read(65536)
+                        if not bloco:
+                            break
+                        f.write(bloco)
+                        baixados += len(bloco)
+                        _reportar(baixados, total)
             # Bit de execução no Linux/macOS (no Windows é no-op inofensivo).
             tmp_path.chmod(tmp_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
             logger.info("Executável novo baixado em %s.", tmp_path)

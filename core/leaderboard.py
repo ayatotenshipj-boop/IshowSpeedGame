@@ -8,10 +8,33 @@ policies já configuradas no Supabase).
 
 import json
 import logging
+import ssl
 import time
 import urllib.request
 
 logger = logging.getLogger(__name__)
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """Contexto SSL que funciona dentro do exe PyInstaller (sem CA do sistema).
+
+    O bundle do PyInstaller não traz os certificados do SO, então `urllib`
+    falha com CERTIFICATE_VERIFY_FAILED. Usa o CA bundle do `certifi` (incluído
+    no build); se faltar, cai para um contexto sem verificação — o leaderboard é
+    público, somente placar, sem dado sensível.
+    """
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:  # noqa: BLE001 — sem certifi: conexão tolerante
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+
+
+_SSL_CTX = _ssl_context()
 
 SUPABASE_URL = "https://kooausbgcmhmijgqjcpd.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtvb2F1c2JnY21obWlqZ3FqY3BkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNDYxNDYsImV4cCI6MjA5NzgyMjE0Nn0.k_7Dd06RqzqCXicuZ-Ft0vMmvW-V6M_YFYuIYs19uss"
@@ -34,7 +57,7 @@ def _request(method: str, endpoint: str, body: dict | None = None):
     data = json.dumps(body).encode() if body else None
     req = urllib.request.Request(url, data=data, headers=_headers(), method=method)
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=5, context=_SSL_CTX) as resp:
             corpo = resp.read().decode()
             return json.loads(corpo) if corpo else []
     except Exception as e:  # noqa: BLE001 — rede nunca pode crashar o jogo
