@@ -46,21 +46,25 @@ class UpdateProgressScreen:
         self._nova_versao = nova_versao
 
     def draw(
-        self, surface: pygame.Surface, filename: str, current: int, total: int
+        self, surface: pygame.Surface, bytes_baixados: int, total_bytes: int
     ) -> None:
-        """Título, arquivo atual, barra de progresso e aviso."""
+        """Título, MB baixados/total, barra de progresso e aviso."""
         surface.fill((0, 0, 0))
 
         titulo = self._fonte_titulo.render("ATUALIZANDO...", True, COLOR_GOLD)
         surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, CENTRO_Y - 120)))
 
-        arq = self._fonte.render(
-            f"Baixando: {filename}  ({current}/{total})", True, COR_TEXTO
-        )
+        mb_baixados = bytes_baixados / 1_000_000
+        mb_total = total_bytes / 1_000_000
+        if total_bytes > 0:
+            texto = f"Baixando atualização... {mb_baixados:.1f} MB / {mb_total:.1f} MB"
+        else:
+            texto = f"Baixando atualização... {mb_baixados:.1f} MB"
+        arq = self._fonte.render(texto, True, COR_TEXTO)
         surface.blit(arq, arq.get_rect(center=(CENTRO_X, CENTRO_Y - 50)))
 
-        # Barra de progresso (fração = current/total).
-        fracao = (current / total) if total > 0 else 0.0
+        # Barra de progresso (fração = bytes_baixados/total_bytes).
+        fracao = (bytes_baixados / total_bytes) if total_bytes > 0 else 0.0
         fracao = max(0.0, min(1.0, fracao))
         barra = pygame.Rect(0, 0, self.BAR_W, self.BAR_H)
         barra.center = (CENTRO_X, CENTRO_Y)

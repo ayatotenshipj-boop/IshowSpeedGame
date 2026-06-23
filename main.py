@@ -164,33 +164,40 @@ def _executar_fluxo_update(
         )
         return
 
-    # 2) Há atualização: baixar os arquivos com barra de progresso.
+    # 2) Há atualização: baixar o EXECUTÁVEL novo da Release (única forma de
+    # atualizar código num exe --onefile). Barra de progresso em MB.
     progress_screen = UpdateProgressScreen(remote.get("version"))
 
-    def _progresso(arquivo: str, indice: int, total: int) -> None:
+    def _progresso_bytes(baixados: int, total: int) -> None:
         _atualizar_escala(tela)
         render_surface.fill((0, 0, 0))
-        progress_screen.draw(render_surface, arquivo, indice, total)
+        progress_screen.draw(render_surface, baixados, total)
         _apresentar(tela, render_surface)
         pygame.event.pump()  # mantém a janela responsiva durante o download
 
-    arquivos = remote.get("files", [])
-    sucesso = updater.download_files(arquivos, _progresso) if arquivos else True
-
-    if sucesso:
-        updater.save_local_version(remote)
+    url = updater.url_executavel(remote)
+    if url is None:
+        # Manifesto sem download_url p/ esta plataforma: nada a aplicar.
         _mostrar_resultado_update(
-            UpdateResultScreen(
-                None,
-                "updated",
-                version=remote.get("version"),
-                changelog=updater.get_changelog(remote),
-            ),
-            tela,
-            render_surface,
-            clock,
+            UpdateResultScreen(None, "error"), tela, render_surface, clock
         )
-        updater.restart_game()  # reinicia para aplicar os arquivos baixados
+        return
+
+    tmp_path = updater.download_executable(url, _progresso_bytes)
+
+    if tmp_path is not None:
+        updater.save_local_version(remote)
+        # Tela "concluído" breve antes de trocar o binário e reiniciar.
+        _atualizar_escala(tela)
+        render_surface.fill((0, 0, 0))
+        UpdateResultScreen(
+            None, "updated",
+            version=remote.get("version"),
+            changelog=updater.get_changelog(remote),
+        ).draw(render_surface)
+        _apresentar(tela, render_surface)
+        pygame.time.wait(2000)
+        updater.apply_and_restart(tmp_path)  # substitui o exe e reinicia
     else:
         _mostrar_resultado_update(
             UpdateResultScreen(None, "error"), tela, render_surface, clock

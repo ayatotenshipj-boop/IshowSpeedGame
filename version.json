@@ -1,10 +1,10 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "- Nova tela de Configurações no menu\n- Botão para diminuir o volume da música\n- Posicionamento livre de torres por pixel",
-  "files": [
-    "main.py",
-    "ui/menus.py",
-    "core/audio.py"
-  ]
+  "changelog": "- Configurações de volume de música\n- Sistema de auto-update corrigido (baixa o executável novo)",
+  "download_url": {
+    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.0.3/SpeedVsLabubu-Linux",
+    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.0.3/SpeedVsLabubu-Windows.exe"
+  },
+  "files": []
 }

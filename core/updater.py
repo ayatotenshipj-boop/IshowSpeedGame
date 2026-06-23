@@ -15,6 +15,9 @@ neutro, NUNCA uma exceção que derrube o jogo.
 import json
 import logging
 import os
+import shutil
+import stat
+import subprocess
 import sys
 import urllib.request
 from pathlib import Path
@@ -36,10 +39,31 @@ RAW_BASE_URL = (
     f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{GITHUB_BRANCH}"
 )
 
-# Timeout das requisições HTTP, em segundos.
+# Timeout das requisições HTTP, em segundos (só para a checagem de versão; o
+# download do executável é grande e usa o timeout padrão do socket).
 _TIMEOUT = 5
 
+# Callback de progresso por arquivo (assets): (nome, indice, total).
 ProgressCb = Callable[[str, int, int], None]
+# Callback de progresso por bytes (download do executável): (baixados, total).
+BytesProgressCb = Callable[[int, int], None]
+
+
+def get_platform_key() -> str:
+    """Chave de plataforma usada em version.json['download_url']."""
+    return "windows" if sys.platform == "win32" else "linux"
+
+
+def _exe_path() -> Path:
+    """Caminho do executável atual.
+
+    Frozen: o próprio binário PyInstaller. Em dev (rodando via python), usa um
+    placeholder na raiz do projeto — `apply_and_restart` se recusa a substituir
+    fora do modo frozen, então o interpretador Python nunca é tocado.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable)
+    return RAIZ_PROJETO / "SpeedVsLabubu"
 
 
 def _versao_para_tupla(versao: str) -> tuple[int, ...]:
@@ -170,10 +194,93 @@ class Updater:
         """Texto de changelog do manifesto remoto (ou aviso padrão)."""
         return remote_dict.get("changelog", "Sem detalhes")
 
-    def restart_game(self) -> None:
-        """Reinicia o executável atual (aplica os arquivos recém-baixados)."""
-        logger.info("Reiniciando o jogo para aplicar a atualização...")
+    # ------------------------------------------------------------------ #
+    # Atualização por substituição do executável (--onefile)
+    # ------------------------------------------------------------------ #
+    def get_platform_key(self) -> str:
+        """Chave de plataforma ('windows'/'linux') do download_url remoto."""
+        return get_platform_key()
+
+    def url_executavel(self, remote_dict: dict) -> str | None:
+        """URL do executável novo para a plataforma atual, ou None se ausente."""
+        urls = remote_dict.get("download_url")
+        if not isinstance(urls, dict):
+            return None
+        return urls.get(self.get_platform_key())
+
+    def download_executable(
+        self, url: str, progress_cb: BytesProgressCb | None = None
+    ) -> Path | None:
+        """Baixa o novo executável para `<exe>.new` ao lado do executável atual.
+
+        `progress_cb(bytes_baixados, total_bytes)` é chamado durante o download.
+        Torna o arquivo executável (Linux). Retorna o caminho temporário, ou
+        None em qualquer falha (o parcial é removido).
+        """
+        exe_path = _exe_path()
+        tmp_path = exe_path.parent / (exe_path.name + ".new")
+
+        def reporthook(count: int, block_size: int, total_size: int) -> None:
+            if progress_cb is not None and total_size > 0:
+                baixados = min(count * block_size, total_size)
+                try:
+                    progress_cb(baixados, total_size)
+                except Exception as erro:  # noqa: BLE001 — UI não derruba o download
+                    logger.warning("Erro no callback de progresso: %s", erro)
+
         try:
-            os.execv(sys.executable, [sys.executable] + sys.argv[1:])
+            tmp_path.parent.mkdir(parents=True, exist_ok=True)
+            urllib.request.urlretrieve(url, tmp_path, reporthook)
+            # Bit de execução no Linux/macOS (no Windows é no-op inofensivo).
+            tmp_path.chmod(tmp_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+            logger.info("Executável novo baixado em %s.", tmp_path)
+            return tmp_path
+        except Exception as erro:  # noqa: BLE001 — rede nunca crasha o jogo
+            logger.error("Erro ao baixar executável: %s", erro)
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
+            return None
+
+    def apply_and_restart(self, tmp_path: Path) -> None:
+        """Substitui o executável atual pelo novo e reinicia o jogo.
+
+        Linux: `shutil.move` direto (o binário em execução pode ser substituído
+        no Linux) seguido de `os.execv`. Windows: um `.bat` espera o processo
+        fechar, move o `.new` por cima e reabre — pois o Windows trava o .exe em
+        uso. Em modo dev (não-frozen) recusa-se a substituir (protege o Python).
+        """
+        if not getattr(sys, "frozen", False):
+            logger.warning(
+                "Modo dev (não-frozen): substituição do executável ignorada. "
+                "Arquivo baixado em %s.", tmp_path
+            )
+            return
+
+        exe_path = Path(sys.executable)
+        try:
+            if sys.platform == "win32":
+                # Windows trava o .exe em execução: delega a um batch que espera
+                # o processo fechar, troca o binário e reabre o jogo.
+                bat = exe_path.parent / "_update.bat"
+                bat.write_text(
+                    "@echo off\r\n"
+                    "timeout /t 2 /nobreak >nul\r\n"
+                    f'move /y "{tmp_path}" "{exe_path}"\r\n'
+                    f'start "" "{exe_path}"\r\n'
+                    'del "%~f0"\r\n'
+                )
+                subprocess.Popen(
+                    ["cmd", "/c", str(bat)],
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    close_fds=True,
+                )
+                sys.exit(0)
+            else:
+                # Linux: substitui o binário e reinicia no mesmo processo.
+                shutil.move(str(tmp_path), str(exe_path))
+                os.execv(str(exe_path), [str(exe_path)] + sys.argv[1:])
         except Exception as erro:  # noqa: BLE001
-            logger.error("Falha ao reiniciar automaticamente: %s", erro)
+            logger.error("Falha ao aplicar atualização/reiniciar: %s", erro)
