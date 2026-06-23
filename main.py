@@ -383,20 +383,21 @@ def main() -> None:
                         elif MAP_RECT.collidepoint(pos) and state.selected_card is not None:
                             idx = state.selected_card
                             tipo = TOWER_TYPES[idx]
-                            # Posicionamento livre: a torre fica no pixel exato do
-                            # clique. O grid só valida a célula central (PATH/ocupada).
+                            # Posicionamento livre: a torre fica no pixel EXATO do
+                            # clique. Nenhum snap ao grid; a célula só serve para
+                            # validar o path (is_placeable) e a venda futura.
                             click_x, click_y = pos
                             cx, cy = grid.pixel_to_cell(click_x, click_y)
                             n_tipo = sum(1 for t in state.towers if type(t) is tipo)
-                            # Hitbox reduzida: rejeita sobreposição com outra torre
-                            # (distância entre centros <= 2*HIT_RADIUS).
+                            # Sobreposição rejeitada por distância euclidiana entre
+                            # centros (< 2*HIT_RADIUS), sem usar células OCCUPIED.
                             sem_sobreposicao = all(
                                 (click_x - t.x) ** 2 + (click_y - t.y) ** 2
                                 > (2 * HIT_RADIUS) ** 2
                                 for t in state.towers
                             )
                             if (
-                                grid.is_area_placeable(click_x, click_y, tipo.cell_radius)
+                                grid.is_placeable(click_x, click_y)
                                 and sem_sobreposicao
                                 and state.coins >= tipo.cost
                                 and n_tipo < MAX_PER_TYPE
@@ -405,7 +406,6 @@ def main() -> None:
                                     tipo(assets, click_x, click_y, cx, cy)
                                 )
                                 state.coins -= tipo.cost
-                                grid.set_occupied_radius(cx, cy, tipo.cell_radius)
                                 card_hand.deselect()
                                 state.selected_card = None
                                 # Flash verde de confirmação no ponto do clique.
@@ -738,11 +738,12 @@ def _desenhar_preview(tela, state, grid) -> None:
     if not MAP_RECT.collidepoint(mx, my):
         return
 
-    # Highlight da célula (verde se posicionável, senão vermelho).
+    # Highlight da célula (verde se posicionável, senão vermelho). Espelha a
+    # regra de posicionamento: ponto fora do path (is_placeable), sem occupancy.
     tipo_sel = TOWER_TYPES[state.selected_card]
     rect = grid.cell_rect(mx, my)
     if rect is not None:
-        ok = grid.is_area_placeable(mx, my, tipo_sel.cell_radius)
+        ok = grid.is_placeable(mx, my)
         cor = (50, 255, 50, 80) if ok else (255, 50, 50, 80)
         hl = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
         hl.fill(cor)

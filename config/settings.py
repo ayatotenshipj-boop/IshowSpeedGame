@@ -35,9 +35,10 @@ RENDER_HEIGHT: int = WINDOW_HEIGHT
 # --- Grid ---
 CELL_SIZE: int = 64  # tamanho de cada célula do grid, em pixels
 
-# Raio de hitbox/colisão das torres (50% da célula em diâmetro = 25% em raio).
-# Usado para impedir torres sobrepostas no posicionamento livre por pixel.
-HIT_RADIUS: float = CELL_SIZE * 0.25
+# Raio de hitbox/colisão das torres no posicionamento livre por pixel.
+# Duas torres não podem ficar a menos de 2*HIT_RADIUS de distância (centro a
+# centro). 0.4 da célula => diâmetro de bloqueio ~0.8 célula entre torres.
+HIT_RADIUS: float = CELL_SIZE * 0.4
 
 # --- Recorte (zoom) do mapa ---
 # Frações da imagem original mantidas no recorte (foco no campo verde, sem
