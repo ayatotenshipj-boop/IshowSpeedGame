@@ -247,7 +247,7 @@ def main() -> None:
     # depois que o jogador clica em JOGAR (MENU -> INTRO -> PLAYING).
     ui_manager = pygame_gui.UIManager((RENDER_WIDTH, RENDER_HEIGHT))
     state_manager = StateManager()
-    current_screen = MenuScreen(ui_manager, assets)
+    current_screen = MenuScreen(ui_manager, assets, audio)
     updater = Updater()  # auto-update via GitHub raw (botão "Atualizar" no menu)
     # Música de fundo inicia uma vez no boot e segue tocando por menu/intro/jogo
     # (não reinicia ao começar a partida — evita a música "tocar de novo").
@@ -430,7 +430,7 @@ def main() -> None:
                     current_screen.destroy()
                     audio.parar()
                     audio.iniciar_fundo()  # restaura música de fundo no menu
-                    current_screen = MenuScreen(ui_manager, assets)
+                    current_screen = MenuScreen(ui_manager, assets, audio)
                     state_manager.transition(GameScreen.MENU)
 
             elif state_manager.current in (GameScreen.GAME_OVER, GameScreen.VICTORY):
@@ -444,7 +444,7 @@ def main() -> None:
                     current_screen.destroy()
                     audio.parar()
                     audio.iniciar_fundo()  # restaura música de fundo no menu
-                    current_screen = MenuScreen(ui_manager, assets)
+                    current_screen = MenuScreen(ui_manager, assets, audio)
                     state_manager.transition(GameScreen.MENU)
 
         # --- Update ---

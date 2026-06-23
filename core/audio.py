@@ -53,6 +53,9 @@ class AudioManager:
         # Estado do fade-in da música de fundo (mixer.music).
         self._fade_in: bool = False
         self._volume: float = 0.0
+        # Volume-alvo definido pelo jogador (teto do fade-in). 1.0 = máximo.
+        # O botão "Diminuir Música" nas Configurações reduz este valor.
+        self._music_volume: float = 1.0
 
         # Cue killthatboy: Sound em canal próprio (sobreposto à música).
         self._sfx_killthatboy: pygame.mixer.Sound | None = self._carregar_sound(
@@ -119,6 +122,28 @@ class AudioManager:
         self.crossfade_to(MUSICA_SUSPENSE, SUSPENSE_CROSSFADE)
 
     # ------------------------------------------------------------------ #
+    # Volume da música (Configurações)
+    # ------------------------------------------------------------------ #
+    def abaixar_volume(self, passo: float = 0.2) -> float:
+        """Reduz o volume-alvo da música em `passo` (mín. 0.0). Retorna o novo.
+
+        Aplica imediatamente à música de fundo e ao canal de crossfade, e baixa
+        o volume corrente do fade-in se ele já passou do novo teto.
+        """
+        self._music_volume = max(0.0, self._music_volume - passo)
+        self._volume = min(self._volume, self._music_volume)
+        if self._disponivel:
+            pygame.mixer.music.set_volume(self._music_volume)
+            if self._cross_channel is not None and not self._cross_active:
+                self._cross_channel.set_volume(self._music_volume)
+        return self._music_volume
+
+    @property
+    def volume_musica(self) -> float:
+        """Volume-alvo atual da música (0.0–1.0)."""
+        return self._music_volume
+
+    # ------------------------------------------------------------------ #
     # Crossfade de música
     # ------------------------------------------------------------------ #
     def crossfade_to(self, novo_arquivo: Path, duracao_segundos: float) -> None:
@@ -161,11 +186,12 @@ class AudioManager:
         if not self._disponivel:
             return
 
-        # Fade-in gradual do volume da música de fundo.
+        # Fade-in gradual do volume da música de fundo, limitado ao teto
+        # escolhido pelo jogador (_music_volume).
         if self._fade_in:
             self._volume += dt / MUSIC_FADE_DURATION
-            if self._volume >= 1.0:
-                self._volume = 1.0
+            if self._volume >= self._music_volume:
+                self._volume = self._music_volume
                 self._fade_in = False
             pygame.mixer.music.set_volume(self._volume)
 

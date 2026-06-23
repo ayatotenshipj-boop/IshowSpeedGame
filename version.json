@@ -1,6 +1,10 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "- Teste do sistema de update\n- Arquivo update_test.txt adicionado",
-  "files": []
+  "changelog": "- Nova tela de Configurações no menu\n- Botão para diminuir o volume da música\n- Posicionamento livre de torres por pixel",
+  "files": [
+    "main.py",
+    "ui/menus.py",
+    "core/audio.py"
+  ]
 }

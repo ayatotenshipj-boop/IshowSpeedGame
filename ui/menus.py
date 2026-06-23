@@ -81,11 +81,75 @@ class MultijogadorScreen(_EmBreveScreen):
     titulo = "🌐 Multijogador Online — Em breve..."
 
 
+class ConfiguracoesScreen:
+    """Painel de Configurações. Único controle: diminuir o volume da música.
+
+    Segue o protocolo de sub-painel do menu (`handle_event` -> 'close'|None,
+    `draw`, `destroy`). Chama `audio.abaixar_volume()` ao clicar no botão.
+    """
+
+    titulo: str = "⚙️ Configurações"
+
+    def __init__(self, manager: pygame_gui.UIManager, audio=None) -> None:
+        self._fonte_titulo = pygame.font.SysFont(None, 48)
+        self._fonte = pygame.font.SysFont(None, 40)
+        self._audio = audio
+        self._painel = pygame.Rect(0, 0, 600, 400)
+        self._painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
+        self.botao_baixar = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(CENTRO_X - 140, self._painel.y + 170, 280, 56),
+            text="🔉 Diminuir Música",
+            manager=manager,
+        )
+        self.botao_fechar = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(CENTRO_X - 90, self._painel.bottom - 80, 180, 50),
+            text="Fechar",
+            manager=manager,
+        )
+
+    def _volume_pct(self) -> int:
+        """Volume atual da música em porcentagem (0–100)."""
+        if self._audio is None:
+            return 100
+        return int(round(self._audio.volume_musica * 100))
+
+    def handle_event(self, event: pygame.event.Event) -> str | None:
+        """'close' ao fechar; diminui o volume e mantém aberto ao clicar baixar."""
+        if event.type == pygame_gui.UI_BUTTON_PRESSED:
+            if event.ui_element == self.botao_baixar:
+                if self._audio is not None:
+                    self._audio.abaixar_volume()
+                return None
+            if event.ui_element == self.botao_fechar:
+                return "close"
+        return None
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Escurece a tela, desenha o painel, o título e o volume atual."""
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        surface.blit(overlay, (0, 0))
+        pygame.draw.rect(surface, COLOR_HUD_BG, self._painel, border_radius=12)
+        pygame.draw.rect(surface, COLOR_GOLD, self._painel, 2, border_radius=12)
+
+        titulo = self._fonte_titulo.render(self.titulo, True, COR_TEXTO)
+        surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, self._painel.y + 70)))
+
+        vol = self._fonte.render(f"Volume da música: {self._volume_pct()}%", True, COLOR_GOLD)
+        surface.blit(vol, vol.get_rect(center=(CENTRO_X, self._painel.y + 125)))
+
+    def destroy(self) -> None:
+        """Remove os botões do UIManager."""
+        self.botao_baixar.kill()
+        self.botao_fechar.kill()
+
+
 class MenuScreen:
     """Tela de menu principal: fundo do mapa, título com sombra e 4 botões."""
 
-    def __init__(self, manager: pygame_gui.UIManager, assets=None) -> None:
+    def __init__(self, manager: pygame_gui.UIManager, assets=None, audio=None) -> None:
         self._manager = manager
+        self._audio = audio
         self._fonte_titulo = pygame.font.SysFont(None, 110, bold=True)
 
         # Fundo: mapa escurecido (ou fundo neutro se ausente).
@@ -99,20 +163,23 @@ class MenuScreen:
 
         # Botões centralizados.
         self.botao_jogar = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(300), text="JOGAR", manager=manager
+            relative_rect=_rect_centralizado(280), text="JOGAR", manager=manager
         )
         self.botao_conquistas = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(372), text="CONQUISTAS", manager=manager
+            relative_rect=_rect_centralizado(344), text="CONQUISTAS", manager=manager
         )
         self.botao_multi = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(444), text="MULTIJOGADOR", manager=manager
+            relative_rect=_rect_centralizado(408), text="MULTIJOGADOR", manager=manager
+        )
+        self.botao_config = pygame_gui.elements.UIButton(
+            relative_rect=_rect_centralizado(472), text="CONFIGURAÇÕES", manager=manager
         )
         self.botao_sair = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(516), text="SAIR", manager=manager
+            relative_rect=_rect_centralizado(536), text="SAIR", manager=manager
         )
         # Botão de atualização: menor que os demais, abaixo de SAIR.
         self.botao_atualizar = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(CENTRO_X - 100, 590, 200, 42),
+            relative_rect=pygame.Rect(CENTRO_X - 100, 600, 200, 42),
             text="🔄 Atualizar",
             manager=manager,
         )
@@ -127,6 +194,7 @@ class MenuScreen:
             self.botao_jogar,
             self.botao_conquistas,
             self.botao_multi,
+            self.botao_config,
             self.botao_sair,
             self.botao_atualizar,
         )
@@ -172,6 +240,8 @@ class MenuScreen:
                 self._abrir_sub(ConquistasScreen(self._manager))
             elif event.ui_element == self.botao_multi:
                 self._abrir_sub(MultijogadorScreen(self._manager))
+            elif event.ui_element == self.botao_config:
+                self._abrir_sub(ConfiguracoesScreen(self._manager, self._audio))
         return None
 
     def _abrir_sub(self, sub: _EmBreveScreen) -> None:
