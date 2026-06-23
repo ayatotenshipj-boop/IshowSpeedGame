@@ -2,7 +2,5 @@
   "version": "1.0.1",
   "name": "Speed Vs Labubu Remake",
   "changelog": "- Teste do sistema de update\n- Arquivo update_test.txt adicionado",
-  "files": [
-    "assets/update_test.txt"
-  ]
+  "files": []
 }
