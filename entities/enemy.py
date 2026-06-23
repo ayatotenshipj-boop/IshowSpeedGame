@@ -1,0 +1,168 @@
+"""Inimigos (Labubus) que caminham pelo path.
+
+Define a classe base `Enemy` e as quatro subclasses jogáveis (Labubu1..Labubu4).
+O movimento é sempre baseado em delta-time (pixels por segundo), seguindo os
+waypoints do path com curvas ortogonais. Nenhum import de pygame_gui aqui.
+"""
+
+import pygame
+
+# Tamanho do sprite do inimigo no mapa.
+SPRITE_SIZE: int = 48
+
+# Dimensões da barra de HP.
+HP_BAR_WIDTH: int = 40
+HP_BAR_HEIGHT: int = 5
+
+
+class Enemy:
+    """Classe base de inimigo. Não deve ser instanciada diretamente."""
+
+    # Atributos de classe sobrescritos por cada subclasse.
+    name: str = "Enemy"
+    max_hp: int = 1
+    speed: float = 0.0      # pixels por segundo
+    reward: int = 0         # moedas concedidas ao morrer
+    asset_name: str = ""
+
+    def __init__(self, assets, waypoints: list[dict]) -> None:
+        self.hp: int = self.max_hp
+        self.slow_factor: float = 1.0   # 1.0 = normal, 0.5 = lento
+        self.slow_timer: float = 0.0    # segundos restantes de slow
+
+        # Posição inicial = primeiro waypoint; mira o segundo.
+        self.x: float = float(waypoints[0]["x"])
+        self.y: float = float(waypoints[0]["y"])
+        self.waypoint_index: int = 1
+
+        self.sprite: pygame.Surface = pygame.transform.smoothscale(
+            assets.get(self.asset_name), (SPRITE_SIZE, SPRITE_SIZE)
+        )
+
+    # ------------------------------------------------------------------ #
+    # Movimento
+    # ------------------------------------------------------------------ #
+    def update(self, dt: float, waypoints: list[dict]) -> bool:
+        """Move o inimigo em direção ao próximo waypoint.
+
+        Retorna True se o inimigo chegou ao fim do path (deve sair do mapa).
+        """
+        # Atualiza o efeito de slow.
+        if self.slow_timer > 0.0:
+            self.slow_timer -= dt
+            if self.slow_timer <= 0.0:
+                self.slow_timer = 0.0
+                self.slow_factor = 1.0
+
+        # Distância que pode percorrer neste frame.
+        restante = self.speed * self.slow_factor * dt
+
+        # Consome a distância segmento a segmento (evita teleporte se dt grande).
+        while restante > 0.0:
+            if self.waypoint_index >= len(waypoints):
+                return True  # passou do último waypoint
+
+            alvo = waypoints[self.waypoint_index]
+            dx = alvo["x"] - self.x
+            dy = alvo["y"] - self.y
+            dist = (dx * dx + dy * dy) ** 0.5
+
+            if dist <= restante:
+                # Alcança o waypoint e sobra distância para o próximo segmento.
+                self.x = float(alvo["x"])
+                self.y = float(alvo["y"])
+                self.waypoint_index += 1
+                restante -= dist
+            else:
+                # Move parcialmente em direção ao waypoint.
+                self.x += dx / dist * restante
+                self.y += dy / dist * restante
+                restante = 0.0
+
+        return False
+
+    def apply_slow(self, duration: float = 2.0) -> None:
+        """Ativa o efeito de lentidão (metade da velocidade) por `duration`s."""
+        self.slow_factor = 0.5
+        self.slow_timer = duration
+
+    def is_dead(self) -> bool:
+        """True se o HP chegou a zero."""
+        return self.hp <= 0
+
+    # ------------------------------------------------------------------ #
+    # Render
+    # ------------------------------------------------------------------ #
+    def draw(self, surface: pygame.Surface) -> None:
+        """Desenha o sprite centralizado e a barra de HP (se ferido)."""
+        rect = self.sprite.get_rect(center=(int(self.x), int(self.y)))
+        surface.blit(self.sprite, rect)
+
+        if self.hp < self.max_hp:
+            self._draw_hp_bar(surface, rect)
+
+    def _draw_hp_bar(self, surface: pygame.Surface, sprite_rect: pygame.Rect) -> None:
+        """Barra verde (HP atual) sobre fundo vermelho (HP máximo)."""
+        x = int(self.x) - HP_BAR_WIDTH // 2
+        y = sprite_rect.top - 4 - HP_BAR_HEIGHT
+        # Fundo (HP máximo).
+        pygame.draw.rect(surface, (180, 40, 40), (x, y, HP_BAR_WIDTH, HP_BAR_HEIGHT))
+        # Frente (HP atual).
+        frac = max(0.0, self.hp / self.max_hp)
+        pygame.draw.rect(
+            surface, (60, 200, 70), (x, y, int(HP_BAR_WIDTH * frac), HP_BAR_HEIGHT)
+        )
+
+    def draw_debug(self, surface: pygame.Surface, fonte: pygame.font.Font) -> None:
+        """Texto pequeno com a posição abaixo do sprite (modo dev)."""
+        txt = fonte.render(f"({int(self.x)},{int(self.y)})", True, (255, 255, 0))
+        surface.blit(txt, (int(self.x) - txt.get_width() // 2, int(self.y) + SPRITE_SIZE // 2))
+
+
+class Labubu1(Enemy):
+    """Fraco e rápido."""
+
+    name = "labubu1"
+    max_hp = 60
+    speed = 120.0
+    reward = 10
+    asset_name = "labubu1"
+
+
+class Labubu2(Enemy):
+    """Médio."""
+
+    name = "labubu2"
+    max_hp = 120
+    speed = 80.0
+    reward = 20
+    asset_name = "labubu2"
+
+
+class Labubu3(Enemy):
+    """Lento e resistente."""
+
+    name = "labubu3"
+    max_hp = 250
+    speed = 50.0
+    reward = 35
+    asset_name = "labubu3"
+
+
+class Labubu4(Enemy):
+    """Rápido e resistente."""
+
+    name = "labubu4"
+    max_hp = 200
+    speed = 110.0
+    reward = 30
+    asset_name = "labubu4"
+
+
+# Mapeia o nome usado nas ondas para a classe correspondente.
+ENEMY_TYPES: dict[str, type[Enemy]] = {
+    "labubu1": Labubu1,
+    "labubu2": Labubu2,
+    "labubu3": Labubu3,
+    "labubu4": Labubu4,
+}
