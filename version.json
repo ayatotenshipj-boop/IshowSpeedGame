@@ -1,6 +1,8 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "- Versão inicial do jogo\n- 15 ondas\n- Boss Ancelotti\n- Speed7 com habilidade especial",
-  "files": []
+  "changelog": "- Teste do sistema de update\n- Arquivo update_test.txt adicionado",
+  "files": [
+    "assets/update_test.txt"
+  ]
 }
