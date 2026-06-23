@@ -12,6 +12,7 @@ Uso:
 import logging
 import sys
 import threading
+import time
 
 import pygame
 import pygame_gui
@@ -34,6 +35,7 @@ from core.audio import AudioManager
 from core.game_state import GameState
 from core.state_manager import GameScreen, StateManager
 from core.updater import Updater
+from core import leaderboard
 from entities.tower import TOWER_TYPES, Speed6, Speed7
 from entities.wave_manager import WAVES
 from map.game_map import GameMap
@@ -41,7 +43,9 @@ from map.placement_grid import PlacementGrid
 from ui.card_hand import CardHand
 from ui.hud import HUD
 from ui.intro_scene import IntroScene
+from ui.leaderboard_screen import LeaderboardScreen
 from ui.menus import GameOverScreen, MenuScreen, PauseScreen, VictoryScreen
+from ui.nome_vitoria_screen import NomeVitoriaScreen
 from ui.tower_panel import TowerPanel
 from ui.update_screen import (
     UpdateCheckScreen,
@@ -256,6 +260,7 @@ def main() -> None:
     state_manager = StateManager()
     current_screen = MenuScreen(ui_manager, assets, audio)
     updater = Updater()  # auto-update via GitHub raw (botão "Atualizar" no menu)
+    leaderboard_screen: LeaderboardScreen | None = None  # overlay do top 10 no menu
     # Música de fundo inicia uma vez no boot e segue tocando por menu/intro/jogo
     # (não reinicia ao começar a partida — evita a música "tocar de novo").
     audio.iniciar_fundo()
@@ -310,6 +315,13 @@ def main() -> None:
                 current_screen.handle_event(evento)
 
             elif state_manager.current == GameScreen.MENU:
+                # Overlay de leaderboard aberto tem prioridade: só trata FECHAR.
+                if leaderboard_screen is not None:
+                    if leaderboard_screen.handle_event(evento):
+                        leaderboard_screen.destroy()
+                        leaderboard_screen = None
+                        current_screen.set_botoes_visiveis(True)
+                    continue
                 acao = current_screen.handle_event(evento)
                 if acao == "play":
                     # JOGAR: prepara a partida e exibe a intro antes do jogo.
@@ -323,6 +335,10 @@ def main() -> None:
                     # Verifica/baixa atualização (mini-loops próprios). Ao voltar,
                     # o loop principal continua desenhando o menu normalmente.
                     _executar_fluxo_update(updater, tela, render_surface, clock)
+                elif acao == "leaderboard":
+                    # Abre o top 10 sobre o menu; esconde os botões por baixo.
+                    leaderboard_screen = LeaderboardScreen(ui_manager)
+                    current_screen.set_botoes_visiveis(False)
 
             elif state_manager.current == GameScreen.PLAYING:
                 if evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
@@ -440,6 +456,23 @@ def main() -> None:
                     current_screen = MenuScreen(ui_manager, assets, audio)
                     state_manager.transition(GameScreen.MENU)
 
+            elif state_manager.current == GameScreen.NOME_VITORIA:
+                resultado = current_screen.handle_event(evento)
+                if resultado is not None:
+                    current_screen.destroy()
+                    if resultado:  # nome digitado: registra a vitória em thread
+                        threading.Thread(
+                            target=lambda nome=resultado: leaderboard.registrar_vitoria(
+                                nome, state.tempo_vitoria
+                            ),
+                            daemon=True,
+                        ).start()
+                    state_manager.transition(GameScreen.VICTORY)
+                    current_screen = VictoryScreen(
+                        ui_manager, state.kills, state.coins, victory_image,
+                        tempo=state.tempo_vitoria,
+                    )
+
             elif state_manager.current in (GameScreen.GAME_OVER, GameScreen.VICTORY):
                 acao = current_screen.handle_event(evento)
                 if acao == "retry":
@@ -477,6 +510,10 @@ def main() -> None:
             _atualizar_jogo(dt_efetivo, state, waypoints)
             card_hand.update(dt, to_render(pygame.mouse.get_pos()))  # hover (real)
 
+            # Cronômetro: inicia no primeiro inimigo que entra em campo (onda 1).
+            if state.tempo_inicio == 0.0 and state.enemies:
+                state.tempo_inicio = time.time()
+
             # Checa derrota.
             if state.lives <= 0:
                 # Restaura música de fundo (corta o loop de suspense do Speed7).
@@ -493,10 +530,11 @@ def main() -> None:
                 # Restaura música de fundo (corta o loop de suspense do Speed7).
                 audio.parar()
                 audio.iniciar_fundo()
-                state_manager.transition(GameScreen.VICTORY)
-                current_screen = VictoryScreen(
-                    ui_manager, state.kills, state.coins, victory_image
-                )
+                # Calcula o tempo total e pede o nome para o leaderboard.
+                if state.tempo_inicio > 0.0:
+                    state.tempo_vitoria = time.time() - state.tempo_inicio
+                state_manager.transition(GameScreen.NOME_VITORIA)
+                current_screen = NomeVitoriaScreen(ui_manager, state.tempo_vitoria)
 
         # Cursor conforme o contexto (apenas em jogo).
         _atualizar_cursor(state_manager, state, card_hand)
@@ -549,6 +587,9 @@ def main() -> None:
                 boss_wave=(state.wave == len(WAVES)),
                 kills=state.kills,
                 speed_multiplier=state.speed_multiplier,
+                tempo_decorrido=(
+                    time.time() - state.tempo_inicio if state.tempo_inicio > 0 else None
+                ),
             )
             # Tooltip da carta sob o cursor (apenas em jogo, por cima de tudo).
             if state_manager.current == GameScreen.PLAYING:
@@ -556,6 +597,10 @@ def main() -> None:
 
         if current_screen is not None:
             current_screen.draw(render_surface)
+
+        # Overlay do leaderboard (sobre o menu), antes da UI do pygame_gui.
+        if leaderboard_screen is not None:
+            leaderboard_screen.draw(render_surface)
 
         ui_manager.draw_ui(render_surface)
 

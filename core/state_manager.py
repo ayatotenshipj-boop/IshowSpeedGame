@@ -15,6 +15,7 @@ class GameScreen(Enum):
     PLAYING = auto()
     PAUSED = auto()
     GAME_OVER = auto()
+    NOME_VITORIA = auto()  # pede o nome do jogador antes da tela de vitória
     VICTORY = auto()
 
 

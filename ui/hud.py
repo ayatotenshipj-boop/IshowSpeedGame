@@ -64,6 +64,7 @@ class HUD:
         boss_wave: bool = False,
         kills: int = 0,
         speed_multiplier: float = 1.0,
+        tempo_decorrido: float | None = None,
     ) -> None:
         """Desenha a faixa superior (moedas à esquerda, onda no centro, vidas à direita)."""
         # Fundo da faixa.
@@ -123,6 +124,16 @@ class HUD:
 
         # Botão de velocidade (2×) — sempre disponível durante o jogo.
         self._desenhar_botao_speed(surface, speed_multiplier)
+
+        # Cronômetro da partida (canto superior direito, abaixo da faixa).
+        if tempo_decorrido is not None and tempo_decorrido > 0:
+            m = int(tempo_decorrido) // 60
+            s = int(tempo_decorrido) % 60
+            crono = self._fonte.render(f"{m:02d}:{s:02d}", True, COR_CIANO)
+            surface.blit(
+                crono,
+                crono.get_rect(topright=(MAP_RECT.right - 16, MAP_RECT.y + TOP_BAR_HEIGHT + 44)),
+            )
 
     def _desenhar_botao_skip(self, surface: pygame.Surface, bonus: int) -> None:
         """Desenha o botão [⏩ SKIP +$bonus]."""

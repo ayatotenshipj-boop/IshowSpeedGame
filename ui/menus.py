@@ -163,23 +163,26 @@ class MenuScreen:
 
         # Botões centralizados.
         self.botao_jogar = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(280), text="JOGAR", manager=manager
+            relative_rect=_rect_centralizado(240), text="JOGAR", manager=manager
+        )
+        self.botao_leaderboard = pygame_gui.elements.UIButton(
+            relative_rect=_rect_centralizado(302), text="🏆 Leaderboard", manager=manager
         )
         self.botao_conquistas = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(344), text="CONQUISTAS", manager=manager
+            relative_rect=_rect_centralizado(364), text="CONQUISTAS", manager=manager
         )
         self.botao_multi = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(408), text="MULTIJOGADOR", manager=manager
+            relative_rect=_rect_centralizado(426), text="MULTIJOGADOR", manager=manager
         )
         self.botao_config = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(472), text="CONFIGURAÇÕES", manager=manager
+            relative_rect=_rect_centralizado(488), text="CONFIGURAÇÕES", manager=manager
         )
         self.botao_sair = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(536), text="SAIR", manager=manager
+            relative_rect=_rect_centralizado(550), text="SAIR", manager=manager
         )
         # Botão de atualização: menor que os demais, abaixo de SAIR.
         self.botao_atualizar = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(CENTRO_X - 100, 600, 200, 42),
+            relative_rect=pygame.Rect(CENTRO_X - 100, 614, 200, 42),
             text="🔄 Atualizar",
             manager=manager,
         )
@@ -192,12 +195,18 @@ class MenuScreen:
         """Todos os botões principais do menu (para hide/show/kill em lote)."""
         return (
             self.botao_jogar,
+            self.botao_leaderboard,
             self.botao_conquistas,
             self.botao_multi,
             self.botao_config,
             self.botao_sair,
             self.botao_atualizar,
         )
+
+    def set_botoes_visiveis(self, visivel: bool) -> None:
+        """Mostra/esconde todos os botões do menu (ex.: sob overlay de leaderboard)."""
+        for b in self._botoes:
+            b.show() if visivel else b.hide()
 
     @staticmethod
     def _carregar_bg(assets) -> pygame.Surface | None:
@@ -236,6 +245,8 @@ class MenuScreen:
                 return "quit"
             if event.ui_element == self.botao_atualizar:
                 return "update"
+            if event.ui_element == self.botao_leaderboard:
+                return "leaderboard"
             if event.ui_element == self.botao_conquistas:
                 self._abrir_sub(ConquistasScreen(self._manager))
             elif event.ui_element == self.botao_multi:
@@ -391,10 +402,12 @@ class VictoryScreen(_EndScreen):
         kills: int,
         coins: int,
         victory_image: pygame.Surface | None = None,
+        tempo: float = 0.0,
     ) -> None:
         super().__init__(manager)
         self._kills = kills
         self._coins = coins
+        self._tempo = tempo
         self._fonte_titulo = pygame.font.SysFont(None, 80)
         self._fonte_msg = pygame.font.SysFont(None, 44)
         self._fonte_sub = pygame.font.SysFont(None, 32)
@@ -443,11 +456,15 @@ class VictoryScreen(_EndScreen):
         sub = self._fonte_sub.render("Você recebe: Texas Chibi de recompensa!", True, COLOR_GOLD)
         surface.blit(sub, sub.get_rect(center=(CENTRO_X, 375)))
 
-        # Estatísticas da partida.
+        # Estatísticas da partida (inclui o tempo total, se houver).
+        from core.leaderboard import formatar_tempo
+
         linhas = [
             f"Inimigos eliminados: {self._kills}",
             f"Moedas restantes: $ {self._coins}",
         ]
+        if self._tempo > 0:
+            linhas.append(f"Tempo: {formatar_tempo(self._tempo)}")
         for i, linha in enumerate(linhas):
             txt = self._fonte_stats.render(linha, True, COR_TEXTO)
             surface.blit(txt, txt.get_rect(center=(CENTRO_X, 420 + i * 40)))
