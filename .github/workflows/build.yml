@@ -17,7 +17,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Instalar dependências
-        run: pip install pygame pygame-gui pyinstaller Pillow
+        run: |
+          pip uninstall pygame -y || true
+          pip install pygame-ce pygame-gui pyinstaller Pillow
       - name: Compilar Linux
         run: |
           pyinstaller --onefile --windowed \
@@ -39,7 +41,10 @@ jobs:
         with:
           python-version: '3.11'
       - name: Instalar dependências
-        run: pip install pygame pygame-gui pyinstaller Pillow
+        shell: bash
+        run: |
+          pip uninstall pygame -y || true
+          pip install pygame-ce pygame-gui pyinstaller Pillow
       - name: Compilar Windows
         run: |
           pyinstaller --onefile --windowed `
