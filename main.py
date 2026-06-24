@@ -41,6 +41,12 @@ from entities.wave_manager import WAVES
 from map.game_map import GameMap
 from map.placement_grid import PlacementGrid
 from ui.card_hand import CardHand
+from ui.changelog_screen import (
+    ChangelogScreen,
+    changelog_ja_visto,
+    ler_version_json,
+    marcar_changelog_visto,
+)
 from ui.hud import HUD
 from ui.intro_scene import IntroScene
 from ui.leaderboard_screen import LeaderboardScreen
@@ -261,6 +267,12 @@ def main() -> None:
     current_screen = MenuScreen(ui_manager, assets, audio)
     updater = Updater()  # auto-update via GitHub raw (botão "Atualizar" no menu)
     leaderboard_screen: LeaderboardScreen | None = None  # overlay do top 10 no menu
+    changelog_screen: ChangelogScreen | None = None  # overlay de novidades no menu
+    # Versão e changelog lidos do version.json local (para exibição automática
+    # uma vez após atualização e reabertura manual pelo botão [LOG]).
+    _vjson = ler_version_json()
+    versao_atual = str(_vjson.get("version", ""))
+    changelog_texto = str(_vjson.get("changelog", ""))
     # Música de fundo inicia uma vez no boot e segue tocando por menu/intro/jogo
     # (não reinicia ao começar a partida — evita a música "tocar de novo").
     audio.iniciar_fundo()
@@ -277,6 +289,21 @@ def main() -> None:
         state.wave_manager.assets = assets
         grid = PlacementGrid()
         card_hand.deselect()
+
+    def _talvez_abrir_changelog() -> None:
+        """Abre o changelog automaticamente UMA vez por versão, sobre o menu."""
+        nonlocal changelog_screen
+        if (
+            changelog_screen is None
+            and isinstance(current_screen, MenuScreen)
+            and changelog_texto
+            and not changelog_ja_visto(versao_atual)
+        ):
+            changelog_screen = ChangelogScreen(ui_manager, versao_atual, changelog_texto)
+            current_screen.set_botoes_visiveis(False)
+
+    # Exibição automática na primeira abertura após uma atualização.
+    _talvez_abrir_changelog()
 
     if dev:
         logger.info("Modo desenvolvimento ativo.")
@@ -315,6 +342,14 @@ def main() -> None:
                 current_screen.handle_event(evento)
 
             elif state_manager.current == GameScreen.MENU:
+                # Overlay de changelog aberto tem prioridade: só trata ENTENDIDO.
+                if changelog_screen is not None:
+                    if changelog_screen.handle_event(evento):
+                        marcar_changelog_visto(versao_atual)
+                        changelog_screen.destroy()
+                        changelog_screen = None
+                        current_screen.set_botoes_visiveis(True)
+                    continue
                 # Overlay de leaderboard aberto tem prioridade: só trata FECHAR.
                 if leaderboard_screen is not None:
                     if leaderboard_screen.handle_event(evento):
@@ -338,6 +373,12 @@ def main() -> None:
                 elif acao == "leaderboard":
                     # Abre o top 10 sobre o menu; esconde os botões por baixo.
                     leaderboard_screen = LeaderboardScreen(ui_manager)
+                    current_screen.set_botoes_visiveis(False)
+                elif acao == "changelog":
+                    # Abertura manual pelo botão [LOG] (mesmo se já visto).
+                    changelog_screen = ChangelogScreen(
+                        ui_manager, versao_atual, changelog_texto
+                    )
                     current_screen.set_botoes_visiveis(False)
 
             elif state_manager.current == GameScreen.PLAYING:
@@ -455,6 +496,7 @@ def main() -> None:
                     audio.iniciar_fundo()  # restaura música de fundo no menu
                     current_screen = MenuScreen(ui_manager, assets, audio)
                     state_manager.transition(GameScreen.MENU)
+                    _talvez_abrir_changelog()
 
             elif state_manager.current == GameScreen.NOME_VITORIA:
                 resultado = current_screen.handle_event(evento)
@@ -486,6 +528,7 @@ def main() -> None:
                     audio.iniciar_fundo()  # restaura música de fundo no menu
                     current_screen = MenuScreen(ui_manager, assets, audio)
                     state_manager.transition(GameScreen.MENU)
+                    _talvez_abrir_changelog()
 
         # --- Update ---
         # Velocidade do jogo (2×): afeta lógica e timers de áudio durante o jogo.
@@ -575,8 +618,8 @@ def main() -> None:
                     color=(200, 40, 40),
                     alpha=140,
                 )
-                # Preview de alcance + highlight da célula sob o cursor, por cima.
-                _desenhar_preview(render_surface, state, grid)
+                # Preview do círculo de alcance sob o cursor, por cima.
+                _desenhar_preview(render_surface, state)
             # Painel da torre selecionada (status, upgrade, venda).
             if (
                 state_manager.current == GameScreen.PLAYING
@@ -606,9 +649,11 @@ def main() -> None:
         if current_screen is not None:
             current_screen.draw(render_surface)
 
-        # Overlay do leaderboard (sobre o menu), antes da UI do pygame_gui.
+        # Overlays do menu (sobre o menu), antes da UI do pygame_gui.
         if leaderboard_screen is not None:
             leaderboard_screen.draw(render_surface)
+        if changelog_screen is not None:
+            changelog_screen.draw(render_surface)
 
         ui_manager.draw_ui(render_surface)
 
@@ -644,6 +689,10 @@ def _processar_acao_painel(acao: str, state: GameState, grid, assets, audio) -> 
         if isinstance(torre, Speed7) and torre.use_ability():
             _ativar_habilidade_speed7(state, assets, audio)
     elif acao == "sell":
+        # Speed7 NÃO pode ser vendida: vender+reimplantar geraria nova instância
+        # com ability_used=False, burlando o uso-único da habilidade global.
+        if isinstance(torre, Speed7):
+            return
         state.coins += torre.sell_refund()
         if torre in state.towers:
             state.towers.remove(torre)
@@ -809,23 +858,18 @@ def _desenhar_mundo(tela, game_map, state, fonte_dev, dev, grid):
         tela.blit(contador, (MAP_RECT.x + 8, MAP_RECT.y + 34))
 
 
-def _desenhar_preview(tela, state, grid) -> None:
-    """Highlight da célula sob o cursor + círculo de alcance da torre selecionada."""
+def _desenhar_preview(tela, state) -> None:
+    """Círculo de alcance da torre selecionada, centrado no cursor.
+
+    A área livre/bloqueada é mostrada pelos overlays globais (verde em toda a
+    MAP_RECT + trilha vermelha) no bloco de render; aqui NÃO se desenha mais o
+    quadrado de célula individual sob o cursor (era ruído visual — BUG 7).
+    """
     mx, my = to_render(pygame.mouse.get_pos())
     if not MAP_RECT.collidepoint(mx, my):
         return
 
-    # Highlight da célula (verde se posicionável, senão vermelho). Espelha a
-    # regra de posicionamento: ponto fora do path (is_placeable), sem occupancy.
     tipo_sel = TOWER_TYPES[state.selected_card]
-    rect = grid.cell_rect(mx, my)
-    if rect is not None:
-        ok = grid.is_placeable(mx, my)
-        cor = (50, 255, 50, 80) if ok else (255, 50, 50, 80)
-        hl = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-        hl.fill(cor)
-        tela.blit(hl, rect.topleft)
-
     # Círculo de alcance centrado no cursor. Alcance "simbólico" (ex.: Speed7,
     # habilidade global) não desenha círculo — seria a tela inteira.
     if tipo_sel.range_px <= max(WINDOW_WIDTH, WINDOW_HEIGHT):

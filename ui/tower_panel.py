@@ -69,8 +69,12 @@ class TowerPanel:
             usada = getattr(tower, "ability_used", False)
             botoes.append(("ability", "Habilidade usada" if usada else "Usar habilidade", not usada))
 
-        # Vender + Fechar.
-        botoes.append(("sell", f"Vender  +${tower.sell_refund()}", True))
+        # Vender + Fechar. Speed7 (única torre com `use_ability`) não é vendável:
+        # vender+reimplantar burlaria o uso-único da habilidade global.
+        if hasattr(tower, "use_ability"):
+            botoes.append(("sell", "Não vendável", False))
+        else:
+            botoes.append(("sell", f"Vender  +${tower.sell_refund()}", True))
         botoes.append(("close", "Fechar", True))
         return botoes
 

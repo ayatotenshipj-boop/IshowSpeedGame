@@ -186,6 +186,13 @@ class MenuScreen:
             text="🔄 Atualizar",
             manager=manager,
         )
+        # Botão de changelog: pequeno, fixo no canto superior direito (emoji não
+        # renderiza bem na fonte padrão, então usa texto "[LOG]").
+        self.botao_changelog = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(WINDOW_WIDTH - 70, 10, 60, 28),
+            text="[LOG]",
+            manager=manager,
+        )
 
         # Sub-painel "Em breve" aberto (Conquistas/Multijogador) ou None.
         self._sub: _EmBreveScreen | None = None
@@ -201,6 +208,7 @@ class MenuScreen:
             self.botao_config,
             self.botao_sair,
             self.botao_atualizar,
+            self.botao_changelog,
         )
 
     def set_botoes_visiveis(self, visivel: bool) -> None:
@@ -247,6 +255,8 @@ class MenuScreen:
                 return "update"
             if event.ui_element == self.botao_leaderboard:
                 return "leaderboard"
+            if event.ui_element == self.botao_changelog:
+                return "changelog"
             if event.ui_element == self.botao_conquistas:
                 self._abrir_sub(ConquistasScreen(self._manager))
             elif event.ui_element == self.botao_multi:

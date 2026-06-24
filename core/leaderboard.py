@@ -4,13 +4,22 @@ Usa apenas a stdlib (`urllib`). Toda chamada de rede é defensiva: qualquer
 falha vira log em PT-BR + retorno neutro, NUNCA derruba o jogo. As credenciais
 abaixo são a chave pública `anon` (somente leitura/inserção, conforme as
 policies já configuradas no Supabase).
+
+Identidade do jogador: cada instalação tem um `player_id` (UUID) persistido em
+arquivo local. O registro de vitória é um UPSERT por `player_id` (idempotente),
+evitando que reabrir o jogo ou usar nomes diferentes lote o banco. A data
+exibida vem do `created_at` (timezone UTC do servidor), convertido para
+horário de Brasília — nunca do relógio local do jogador.
 """
 
 import json
 import logging
 import ssl
-import time
+import sys
 import urllib.request
+import uuid
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +50,30 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 TABELA = "leaderboard"
 MAX_ENTRIES = 10
 
+# Cache em memória do player_id (resolvido uma vez por execução).
+_PLAYER_ID_CACHE: str | None = None
 
-def _headers() -> dict:
+
+def _headers(upsert: bool = False) -> dict:
+    """Cabeçalhos REST. `upsert=True` ativa o merge por chave de conflito."""
+    prefer = (
+        "resolution=merge-duplicates,return=representation"
+        if upsert
+        else "return=representation"
+    )
     return {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
-        "Prefer": "return=representation",
+        "Prefer": prefer,
     }
 
 
-def _request(method: str, endpoint: str, body: dict | None = None):
+def _request(method: str, endpoint: str, body: dict | None = None, upsert: bool = False):
     """Requisição REST ao Supabase; retorna o JSON ou None (com aviso) em falha."""
     url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
     data = json.dumps(body).encode() if body else None
-    req = urllib.request.Request(url, data=data, headers=_headers(), method=method)
+    req = urllib.request.Request(url, data=data, headers=_headers(upsert), method=method)
     try:
         with urllib.request.urlopen(req, timeout=5, context=_SSL_CTX) as resp:
             corpo = resp.read().decode()
@@ -65,28 +83,104 @@ def _request(method: str, endpoint: str, body: dict | None = None):
         return None
 
 
+# --------------------------------------------------------------------------- #
+# Identidade do jogador (UUID por instalação)
+# --------------------------------------------------------------------------- #
+def _get_player_id_path() -> Path:
+    """Caminho do arquivo de player_id (por SO). Cria o diretório-pai."""
+    if sys.platform == "win32":
+        base = Path.home() / "AppData" / "Roaming" / "speedvslabubu"
+    else:
+        base = Path.home() / ".config" / "speedvslabubu"
+    base.mkdir(parents=True, exist_ok=True)
+    return base / "player_id"
+
+
+def _get_or_create_player_id() -> str:
+    """UUID estável da instalação. Cacheado; nunca derruba o jogo.
+
+    Se o arquivo existir, carrega; senão gera e salva. Em FS read-only / sem
+    permissão / disco cheio, cai para um UUID efêmero (degradação graciosa: a
+    idempotência some nesse caso raro, mas o registro ainda funciona).
+    """
+    global _PLAYER_ID_CACHE
+    if _PLAYER_ID_CACHE:
+        return _PLAYER_ID_CACHE
+    try:
+        path = _get_player_id_path()
+        if path.exists():
+            pid = path.read_text(encoding="utf-8").strip()
+            if pid:
+                _PLAYER_ID_CACHE = pid
+                return pid
+        pid = str(uuid.uuid4())
+        path.write_text(pid, encoding="utf-8")
+    except Exception:  # noqa: BLE001 — FS indisponível: UUID efêmero, sem crash
+        logger.warning("[Leaderboard] Não foi possível persistir player_id; usando efêmero.")
+        pid = str(uuid.uuid4())
+    _PLAYER_ID_CACHE = pid
+    return pid
+
+
+# --------------------------------------------------------------------------- #
+# Datas
+# --------------------------------------------------------------------------- #
+def _formatar_data_utc(created_at_str: str | None) -> str:
+    """Converte o `created_at` UTC do Supabase para horário de Brasília (UTC-3).
+
+    Defensivo: `created_at` ausente ou em formato inesperado retorna string
+    vazia — nunca lança (o leaderboard não pode crashar por uma data).
+    """
+    if not created_at_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+        dt_br = dt.astimezone(timezone(timedelta(hours=-3)))
+        return dt_br.strftime("%d/%m/%Y")
+    except Exception:  # noqa: BLE001 — formato inesperado não derruba o jogo
+        return ""
+
+
+# --------------------------------------------------------------------------- #
+# API pública
+# --------------------------------------------------------------------------- #
 def buscar_top10() -> list[dict]:
-    """Top 10 por menor tempo (ordem crescente). Lista vazia em falha."""
-    endpoint = f"{TABELA}?select=nome,tempo,data&order=tempo.asc&limit={MAX_ENTRIES}"
+    """Top 10 por menor tempo (ordem crescente). Lista vazia em falha.
+
+    A data exibida (`data`) é derivada do `created_at` UTC do servidor — a UI
+    continua lendo a chave `data`, agora sempre no fuso de Brasília.
+    """
+    endpoint = (
+        f"{TABELA}?select=nome,tempo,created_at,player_id"
+        f"&order=tempo.asc&limit={MAX_ENTRIES}"
+    )
     resultado = _request("GET", endpoint)
-    return resultado if resultado else []
+    if not resultado:
+        return []
+    for e in resultado:
+        e["data"] = _formatar_data_utc(e.get("created_at"))
+    return resultado
 
 
 def registrar_vitoria(nome: str, tempo_segundos: float) -> int | None:
-    """Insere a vitória e retorna a posição (1-based) no top 10, ou None.
+    """Registra a vitória (UPSERT por player_id) e retorna a posição no top 10.
 
     None significa: fora do top 10 OU falha de rede (não distingue, de
-    propósito — a UI trata ambos como 'registrado, mas sem destaque').
+    propósito — a UI trata ambos como 'registrado, mas sem destaque'). A data é
+    gerada pelo servidor (`created_at DEFAULT now()`), nunca pelo cliente.
     """
+    player_id = _get_or_create_player_id()
     entrada = {
         "nome": nome[:16].strip() or "Anônimo",
         "tempo": round(tempo_segundos, 1),
-        "data": time.strftime("%d/%m/%Y"),
+        "player_id": player_id,
     }
-    _request("POST", TABELA, entrada)
+    # UPSERT: nova vitória do mesmo player_id atualiza a linha (top-10 e regra de
+    # "melhor tempo" são garantidos no servidor — ver supabase_migracao_v1.1.0.sql).
+    _request("POST", f"{TABELA}?on_conflict=player_id", entrada, upsert=True)
     top = buscar_top10()
     for i, e in enumerate(top):
-        if e["nome"] == entrada["nome"] and abs(e["tempo"] - tempo_segundos) < 1.0:
+        if e.get("player_id") == player_id:
             return i + 1
     return None
 

@@ -1,10 +1,10 @@
 {
-  "version": "1.0.7",
+  "version": "1.1.0",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "- Speed7: suspense toca uma vez e a música retoma de onde parou\n- Sprites e mapa voltam ao normal após a habilidade",
+  "changelog": "v1.1.0 - Correções\n- Data do leaderboard agora usa fuso horário de Brasília\n- Corrigido múltiplos registros: cada jogador tem ID único\n- Leaderboard limitado a top 10 no banco\n- Speed7 não pode mais ser vendido\n- Trilha dos inimigos ajustada para área visível\n- Removido quadrado verde ao posicionar cartas",
   "download_url": {
-    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.0.7/SpeedVsLabubu-Linux",
-    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.0.7/SpeedVsLabubu-Windows.exe"
+    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.1.0/SpeedVsLabubu-Linux",
+    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.1.0/SpeedVsLabubu-Windows.exe"
   },
   "files": []
 }
