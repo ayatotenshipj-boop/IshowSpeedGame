@@ -170,19 +170,47 @@ def buscar_top10() -> list[dict]:
         e["data"] = _formatar_data_utc(e.get("created_at"))
     return resultado
 
-def registrar_vitoria(nome: str, tempo_segundos: float) -> int | None:
-    """Registra a vitória (UPSERT por player_id) e retorna a posição no top 10."""
+def buscar_record_proprio() -> dict | None:
+    """Retorna {'nome': ..., 'tempo': ...} do jogador atual ou None."""
     player_id = _get_or_create_player_id()
-    
-    # Usando 'nome' (em português), que é como a coluna está no banco
+    resultado = _request("GET", f"{TABELA}?player_id=eq.{player_id}&select=nome,tempo")
+    if resultado:
+        return resultado[0]
+    return None
+
+
+def registrar_vitoria(nome: str, tempo_segundos: float) -> int | None:
+    """Registra a vitória e retorna a posição no top 10.
+
+    O banco tem um trigger que só aceita UPDATE quando o novo tempo é estritamente
+    menor que o existente. A função busca o record atual do jogador antes de tentar:
+    — Novo record (tempo menor): UPSERT com novo nome + tempo.
+    — Primeiro registro: INSERT normal.
+    — Tempo não melhorou: retorna a posição atual sem alterar o banco.
+    """
+    player_id = _get_or_create_player_id()
+    nome_sanitizado = nome[:16].strip() or "Anônimo"
+    novo_tempo = round(tempo_segundos, 1)
+
+    # Busca entrada existente para comparar tempos.
+    existente = _request("GET", f"{TABELA}?player_id=eq.{player_id}&select=tempo")
+    if existente:
+        tempo_salvo = existente[0].get("tempo", float("inf"))
+        if novo_tempo >= tempo_salvo:
+            # Não melhorou: apenas retorna posição atual, sem tocar no banco.
+            top = buscar_top10()
+            for i, e in enumerate(top):
+                if e.get("player_id") == player_id:
+                    return i + 1
+            return None
+
     entrada = {
-        "nome": nome[:16].strip() or "Anônimo",
-        "tempo": round(tempo_segundos, 1),
+        "nome": nome_sanitizado,
+        "tempo": novo_tempo,
         "player_id": player_id,
     }
-    
     _request("POST", f"{TABELA}?on_conflict=player_id", entrada, upsert=True)
-    
+
     top = buscar_top10()
     for i, e in enumerate(top):
         if e.get("player_id") == player_id:

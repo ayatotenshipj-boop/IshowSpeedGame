@@ -24,6 +24,7 @@ from config.settings import (
     HUD_RECT,
     MAP_RECT,
     MODOS_DIFICULDADE,
+    RAIZ_PROJETO,
     RENDER_HEIGHT,
     RENDER_WIDTH,
     WINDOW_HEIGHT,
@@ -57,6 +58,7 @@ from ui.changelog_screen import (
     ler_version_json,
     marcar_changelog_visto,
 )
+from ui.diff_selector import DiffSelectorWidget
 from ui.hud import HUD
 from ui.intro_scene import IntroScene
 from ui.leaderboard_screen import LeaderboardScreen
@@ -280,12 +282,16 @@ def main() -> None:
 
     # Telas e máquina de estados. O jogo começa no MENU; a intro só aparece
     # depois que o jogador clica em JOGAR (MENU -> INTRO -> PLAYING).
-    ui_manager = pygame_gui.UIManager((RENDER_WIDTH, RENDER_HEIGHT))
+    ui_manager = pygame_gui.UIManager(
+        (RENDER_WIDTH, RENDER_HEIGHT),
+        theme_path=str(RAIZ_PROJETO / "assets" / "ui_theme.json"),
+    )
     state_manager = StateManager()
     current_screen = MenuScreen(ui_manager, assets, audio)
     updater = Updater()  # auto-update via GitHub raw (botão "Atualizar" no menu)
     leaderboard_screen: LeaderboardScreen | None = None  # overlay do top 10 no menu
     changelog_screen: ChangelogScreen | None = None  # overlay de novidades no menu
+    diff_selector: DiffSelectorWidget | None = None   # seletor in-game de dificuldade
     # Versão e changelog lidos do version.json local (para exibição automática
     # uma vez após atualização e reabertura manual pelo botão [LOG]).
     _vjson = ler_version_json()
@@ -311,6 +317,8 @@ def main() -> None:
         state.lives = MODOS_DIFICULDADE[modo]["lives"]
         state.wave_manager.assets = assets
         state.wave_manager.modo = modo
+        # Waves congeladas até o seletor de dificuldade confirmar o modo.
+        state.waves_congeladas = True
         grid = PlacementGrid()
         card_hand.deselect()
 
@@ -383,10 +391,11 @@ def main() -> None:
                     continue
                 acao = current_screen.handle_event(evento)
                 if acao == "play":
-                    # JOGAR: vai para a seleção de dificuldade antes da intro.
+                    # JOGAR: inicia direto com Normal; seletor in-game aparece em campo.
                     current_screen.destroy()
-                    current_screen = ModoScreen(ui_manager, assets)
-                    state_manager.transition(GameScreen.SELECAO_MODO)
+                    reset_game("normal")
+                    current_screen = IntroScene(assets)
+                    state_manager.transition(GameScreen.INTRO)
                 elif acao == "quit":
                     rodando = False
                 elif acao == "update":
@@ -436,7 +445,17 @@ def main() -> None:
                         state.selected_card = None
                     elif evento.button == 1:
                         pos = evento.pos
-                        # 0) Botões do HUD (velocidade 2× e pular onda) têm
+                        # 0a) Seletor de dificuldade in-game tem prioridade máxima.
+                        if diff_selector is not None and diff_selector.visible:
+                            modo_clicado = diff_selector.handle_click(pos)
+                            if modo_clicado:
+                                state.modo_dificuldade = modo_clicado
+                                state.lives = MODOS_DIFICULDADE[modo_clicado]["lives"]
+                                state.wave_manager.modo = modo_clicado
+                                state.waves_congeladas = False
+                                diff_selector = None
+                                continue
+                        # 0b) Botões do HUD (velocidade 2× e pular onda) têm
                         # prioridade máxima — evitam posicionar torre por baixo.
                         if hud.speed_button_rect().collidepoint(pos):
                             state.speed_multiplier = (
@@ -480,11 +499,18 @@ def main() -> None:
                                     state.selected_card = idx
                             # Clique no HUD fora de qualquer carta: não faz nada.
                         elif MAP_RECT.collidepoint(pos) and state.selected_card is None:
-                            # Sem carta: clique numa torre abre o painel; vazio fecha.
-                            cx, cy = grid.pixel_to_cell(*pos)
-                            state.selected_tower = next(
-                                (t for t in state.towers if t.cell_x == cx and t.cell_y == cy),
-                                None,
+                            # Sem carta: clique na hitbox circular da torre abre painel.
+                            # Usa distância euclidiana (não célula) para evitar seleção errada
+                            # quando duas torres estão próximas na mesma área de célula.
+                            px, py = pos
+                            candidatas = [
+                                t for t in state.towers
+                                if (px - t.x) ** 2 + (py - t.y) ** 2 <= HIT_RADIUS ** 2
+                            ]
+                            state.selected_tower = (
+                                min(candidatas,
+                                    key=lambda t: (px - t.x) ** 2 + (py - t.y) ** 2)
+                                if candidatas else None
                             )
                         elif MAP_RECT.collidepoint(pos) and state.selected_card is not None:
                             idx = state.selected_card
@@ -596,11 +622,23 @@ def main() -> None:
                 current_screen.destroy()
                 current_screen = None
                 state_manager.transition(GameScreen.PLAYING)
+                # Seletor in-game de dificuldade: 10s no canto superior.
+                diff_selector = DiffSelectorWidget()
 
         if state_manager.current == GameScreen.PLAYING:
             _atualizar_jogo(dt_efetivo, state, waypoints, assets)
             _atualizar_skip(dt_efetivo, state)  # Skip/Auto-Skip durante a wave
             card_hand.update(dt, to_render(pygame.mouse.get_pos()))  # hover (real)
+
+            # Seletor de dificuldade in-game: ticker e aplicação ao timeout.
+            if diff_selector is not None:
+                modo_confirmado = diff_selector.update(dt)
+                if modo_confirmado:
+                    state.modo_dificuldade = modo_confirmado
+                    state.lives = MODOS_DIFICULDADE[modo_confirmado]["lives"]
+                    state.wave_manager.modo = modo_confirmado
+                    state.waves_congeladas = False
+                    diff_selector = None
 
             # Cronômetro: inicia no primeiro inimigo que entra em campo (onda 1).
             if state.tempo_inicio == 0.0 and state.enemies:
@@ -626,7 +664,7 @@ def main() -> None:
                     kills=state.kills,
                     coins=state.coins,
                     lives=0,
-                    onda_atual=state.wave_manager.wave_numero,
+                    onda_atual=state.wave,
                     onda_total=len(WAVES),
                     tempo=tempo_sobrev,
                     modo=state.modo_dificuldade.upper(),
@@ -644,7 +682,11 @@ def main() -> None:
                 if state.tempo_inicio > 0.0:
                     state.tempo_vitoria = time.time() - state.tempo_inicio
                 state_manager.transition(GameScreen.NOME_VITORIA)
-                current_screen = NomeVitoriaScreen(ui_manager, state.tempo_vitoria)
+                # Busca record anterior para informar o jogador se não bateu.
+                _record_atual = leaderboard.buscar_record_proprio()
+                current_screen = NomeVitoriaScreen(
+                    ui_manager, state.tempo_vitoria, record_anterior=_record_atual
+                )
 
         # Cursor conforme o contexto (apenas em jogo).
         _atualizar_cursor(state_manager, state, card_hand)
@@ -673,6 +715,8 @@ def main() -> None:
                     color=COR_OVERLAY_PATH,
                     alpha=140,
                 )
+                # Hitboxes circulares das torres existentes (dourado) + hitbox do cursor.
+                _desenhar_hitboxes_torres(render_surface, state.towers)
                 # Preview de range (verde=válido, vermelho=inválido) sob o cursor.
                 _desenhar_preview(render_surface, state, grid, preview_surf)
             # Painel da torre selecionada (status, upgrade, venda).
@@ -700,6 +744,13 @@ def main() -> None:
                 skip_bonus=_skip_bonus(state),
                 auto_skip=state.auto_skip,
             )
+            # Seletor de dificuldade in-game (se visível).
+            if (
+                state_manager.current == GameScreen.PLAYING
+                and diff_selector is not None
+            ):
+                diff_selector.draw(render_surface)
+
             # Tooltip da carta sob o cursor (apenas em jogo, por cima de tudo).
             if state_manager.current == GameScreen.PLAYING:
                 card_hand.draw_tooltip(render_surface)
@@ -857,23 +908,20 @@ def _skip_bonus(state: GameState) -> int:
 
 
 def _executar_skip(state: GameState) -> None:
-    """Executa o Skip: bônus, elimina os inimigos restantes e avança a wave."""
+    """Executa o Skip: bônus e avança para a próxima wave imediatamente.
+
+    Inimigos em campo PERMANECEM — a nova wave spawna por cima deles.
+    O bônus (1/4 das recompensas dos inimigos vivos) compensa o jogador
+    por avançar sem esperar o intervalo entre ondas.
+    """
     if not state.skip_disponivel:
         return
     state.coins += _skip_bonus(state)
-    # Se o boss está em campo, o skip também o derrota (senão a vitória nunca
-    # dispara e a partida trava).
-    for e in state.enemies:
-        if e.name == "Ancelotti":
-            state.boss_defeated = True
-    state.enemies.clear()
-    state.projectiles.clear()
     wm = state.wave_manager
     if wm.wave_active:
-        wm.forcar_fim_onda()   # ainda spawnando: avança a onda (zera wave_timer)
+        wm.forcar_fim_onda()   # ainda spawnando: encerra e avança
     else:
-        # Spawn já terminou (a onda foi contabilizada por _spawnar): só restavam
-        # inimigos em campo. Elimina a espera do intervalo p/ a próxima começar já.
+        # Spawn terminou mas o intervalo ainda está contando: zera a espera.
         wm.wave_timer = 0.0
     state.skip_disponivel = False
     state.skip_threshold = 0.0
@@ -884,9 +932,21 @@ def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict], assets) 
     """Atualiza torres, projéteis, inimigos, flashes e ondas (apenas PLAYING)."""
     # 1. Torres miram e disparam.
     for torre in state.towers:
+        torre.aoe_flash = None
         projetil = torre.update(dt, state.enemies)
         if projetil is not None:
-            state.projectiles.append(projetil)
+            if isinstance(projetil, list):
+                state.projectiles.extend(projetil)
+            else:
+                state.projectiles.append(projetil)
+        if torre.aoe_flash:
+            cx, cy = torre.centro_pixel()
+            fl = torre.aoe_flash
+            state.aoe_flashes.append({
+                "x": cx, "y": cy,
+                "raio": fl["raio"], "timer": fl["dur"], "max": fl["dur"],
+                "cor": fl["cor"],
+            })
 
     # 2. Projéteis se movem e resolvem colisão.
     for proj in state.projectiles[:]:
@@ -945,8 +1005,15 @@ def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict], assets) 
         if flash["timer"] <= 0.0:
             state.death_flashes.remove(flash)
 
-    # 5. Gerenciador de ondas.
-    state.wave_manager.update(dt, state.enemies, waypoints)
+    # 4b. AOE flashes (anéis expansivos) expiram.
+    for fl in state.aoe_flashes[:]:
+        fl["timer"] -= dt
+        if fl["timer"] <= 0.0:
+            state.aoe_flashes.remove(fl)
+
+    # 5. Gerenciador de ondas (congelado enquanto seletor de dificuldade ativo).
+    if not state.waves_congeladas:
+        state.wave_manager.update(dt, state.enemies, waypoints)
     state.wave = state.wave_manager.display_wave()
 
 
@@ -963,6 +1030,17 @@ def _desenhar_mundo(tela, game_map, state, fonte_dev, dev, grid):
 
     for proj in state.projectiles:
         proj.draw(tela)
+
+    # AOE flashes: anéis expansivos (slow azul / buff amarelo).
+    for fl in state.aoe_flashes:
+        t = fl["timer"] / max(0.001, fl["max"])   # 1.0→0.0 (some going down)
+        raio = int(fl["raio"] * (1.0 - t))        # expande do centro para fora
+        alpha = int(200 * t)
+        if raio > 2:
+            sz = raio * 2 + 4
+            fx = pygame.Surface((sz, sz), pygame.SRCALPHA)
+            pygame.draw.circle(fx, (*fl["cor"], alpha), (raio + 2, raio + 2), raio, 3)
+            tela.blit(fx, (int(fl["x"]) - raio - 2, int(fl["y"]) - raio - 2))
 
     # Flashes (morte = vermelho; spawn de reforço = amarelo).
     for flash in state.death_flashes:
@@ -993,6 +1071,22 @@ def _desenhar_mundo(tela, game_map, state, fonte_dev, dev, grid):
         tela.blit(contador, (MAP_RECT.x + 8, MAP_RECT.y + 34))
 
 
+def _desenhar_hitboxes_torres(tela: pygame.Surface, towers: list) -> None:
+    """Círculo de hitbox (HIT_RADIUS) de cada torre durante posicionamento de carta.
+
+    Mostra visualmente onde está o "corpo" de cada torre — dois círculos que
+    se tocam = sobreposição proibida. Cor dourada semi-transparente.
+    """
+    raio = int(HIT_RADIUS)
+    tamanho = raio * 2 + 4
+    surf = pygame.Surface((tamanho, tamanho), pygame.SRCALPHA)
+    pygame.draw.circle(surf, (255, 208, 64, 50),  (raio + 2, raio + 2), raio)
+    pygame.draw.circle(surf, (255, 208, 64, 210), (raio + 2, raio + 2), raio, 2)
+    for t in towers:
+        cx, cy = t.centro_pixel()
+        tela.blit(surf, (cx - raio - 2, cy - raio - 2))
+
+
 def _desenhar_preview(tela, state, grid, preview_surf: pygame.Surface) -> None:
     """Círculo de range da torre selecionada, centrado no cursor.
 
@@ -1004,13 +1098,28 @@ def _desenhar_preview(tela, state, grid, preview_surf: pygame.Surface) -> None:
         return
 
     tipo_sel = TOWER_TYPES[state.selected_card]
+    placeable = grid.is_placeable(mx, my)
+    # Verifica também sobreposição com torres existentes.
+    sem_sobreposicao = all(
+        (mx - t.x) ** 2 + (my - t.y) ** 2 > (2 * HIT_RADIUS) ** 2
+        for t in state.towers
+    )
+    valido = placeable and sem_sobreposicao
+    cor_rgb = COR_OVERLAY_VALIDO if valido else COR_OVERLAY_INVALIDO
+
     # Alcance "simbólico" (ex.: Speed7, habilidade global) não desenha círculo.
     if tipo_sel.range_px <= max(WINDOW_WIDTH, WINDOW_HEIGHT):
-        placeable = grid.is_placeable(mx, my)
-        cor = (*COR_OVERLAY_VALIDO, ALPHA_OVERLAY_HOVER) if placeable else (*COR_OVERLAY_INVALIDO, ALPHA_OVERLAY_HOVER)
         preview_surf.fill((0, 0, 0, 0))
-        pygame.draw.circle(preview_surf, cor, (mx, my), tipo_sel.range_px)
+        pygame.draw.circle(preview_surf, (*cor_rgb, ALPHA_OVERLAY_HOVER), (mx, my), tipo_sel.range_px)
         tela.blit(preview_surf, (0, 0))
+
+    # Hitbox do cursor: círculo de HIT_RADIUS mostrando o "corpo" da torre.
+    raio_hit = int(HIT_RADIUS)
+    hit_size = raio_hit * 2 + 4
+    hit_surf = pygame.Surface((hit_size, hit_size), pygame.SRCALPHA)
+    pygame.draw.circle(hit_surf, (*cor_rgb, 80),  (raio_hit + 2, raio_hit + 2), raio_hit)
+    pygame.draw.circle(hit_surf, (*cor_rgb, 230), (raio_hit + 2, raio_hit + 2), raio_hit, 2)
+    tela.blit(hit_surf, (mx - raio_hit - 2, my - raio_hit - 2))
 
 
 def _definir_cursor(cursor) -> None:

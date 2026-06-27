@@ -129,9 +129,11 @@ class TowerPanel:
         surface.blit(titulo, (painel.x + MARGEM, painel.y + 12))
 
         # Status com preview do próximo nível.
+        buff_ativo = getattr(tower, "buff_active", False)
         prox = tower.next_stats()
-        linhas = [
-            ("Dano", tower.damage, None if prox is None else prox[0]),
+        dano_atual = tower.effective_damage() if hasattr(tower, "effective_damage") else tower.damage
+        linhas: list[tuple[str, object, object]] = [
+            ("Dano", dano_atual, None if prox is None else prox[0]),
             ("Alcance", tower.range_px, None if prox is None else prox[1]),
             ("Cadência", round(tower.fire_rate, 1), None if prox is None else round(prox[2], 1)),
         ]
@@ -143,6 +145,12 @@ class TowerPanel:
                 seta = self._fonte_stats.render(f"-> {nxt}", True, COR_SETA)
                 surface.blit(seta, (painel.x + MARGEM + 150, y))
             y += 20
+        # Linha extra no modo buff AOE do Speed5.
+        if buff_ativo and hasattr(tower, "BUFF_AOE_INTERVAL"):
+            aoe_txt = self._fonte_stats.render(
+                f"AOE 6s  range +20%", True, (255, 200, 60)
+            )
+            surface.blit(aoe_txt, (painel.x + MARGEM, y))
 
         # Botões.
         for rect, action, label, on in self._btn_rects(tower):

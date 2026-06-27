@@ -1,65 +1,85 @@
-"""HUD do jogo (barra superior com moedas, onda e vida).
+"""HUD do jogo — barra superior (32px) com stats e botões de controle.
 
-Camada de UI em Pygame puro (sem pygame_gui). Desenha uma faixa no topo da
-área do mapa com o saldo, a onda atual e as vidas (cor varia com o valor).
+Layout:
+  [$ coins] [Mortes kills] [Onda n/N] [MM:SS] [Vidas n]   …   [SKIP] [AUTO] [2×]
+  ─────────────────── borda inferior 1px #1a1800 ───────────────────────────────
+  (mapa)  Boss alert / countdown aparece abaixo desta barra, sobre o mapa.
+
+Estilo btn-hud (HTML de referência):
+  inativo : bg #111108, borda dim, texto dim
+  hover   : borda dourada, texto dourado, bg #1a1800
+  ativo   : fundo dourado, texto escuro, borda dourada
+  skip    : borda verde-neon, texto verde-neon
 """
 
 import pygame
 
 from config.settings import (
-    COLOR_GOLD, COR_TEXTO, MAP_RECT,
-    COR_CIANO, COR_VIDA_OK, COR_VIDA_ALERTA, COR_VIDA_CRITICA,
-    COR_BARRA_HUD_TOPO, COR_LABEL_HUD,
-    COR_BTN_FUNDO, COR_BTN_INATIVO, COR_BTN_TEXTO_INATIVO,
-    COR_BTN_ATIVO, COR_BTN_TEXTO_ATIVO, COR_BTN_SPEED_ESCURO,
-    COR_SKIP_FUNDO, COR_SKIP_BORDA, COR_SKIP_TEXTO, COR_BOSS_ALERTA,
+    COLOR_CARD_BG,
+    COLOR_GOLD,
+    COR_BOSS_ALERTA,
+    COR_BORDA_SUTIL,
+    COR_BTN_HUD_ATIVO_TX,
+    COR_BTN_HUD_HOVER_BG,
+    COR_BTN_HUD_TEXTO,
+    COR_CIANO,
+    COR_HUD_BARRA_BG,
+    COR_HUD_BORDA,
+    COR_LABEL_HUD,
+    COR_TEXTO,
+    COR_VERDE_NEON,
+    COR_VIDA_ALERTA,
+    COR_VIDA_CRITICA,
+    COR_VIDA_OK,
+    MAP_RECT,
 )
 
-# Altura da faixa do HUD no topo do mapa.
-TOP_BAR_HEIGHT: int = 30
+TOP_BAR_HEIGHT: int = 32
 
-# Botões interativos do HUD (posições fixas no espaço de render).
+# ── Geometria dos botões (inline na barra) ──────────────────────────────────
+_BTN_H   = 22
+_BTN_Y   = MAP_RECT.y + (TOP_BAR_HEIGHT - _BTN_H) // 2   # 5px — centrado
+_SPEED_W = 44
+_AUTO_W  = 50
+_SKIP_W  = 130
+_GAP     = 8
+_PAD_R   = 12
+
 SPEED_BTN_RECT: pygame.Rect = pygame.Rect(
-    MAP_RECT.right - 90, MAP_RECT.y + TOP_BAR_HEIGHT + 8, 74, 30
+    MAP_RECT.right - _PAD_R - _SPEED_W, _BTN_Y, _SPEED_W, _BTN_H
 )
-# Botão Auto-Skip (toggle), logo abaixo do botão de velocidade.
 AUTO_BTN_RECT: pygame.Rect = pygame.Rect(
-    MAP_RECT.right - 90, MAP_RECT.y + TOP_BAR_HEIGHT + 44, 74, 30
+    SPEED_BTN_RECT.left - _GAP - _AUTO_W, _BTN_Y, _AUTO_W, _BTN_H
 )
 SKIP_BTN_RECT: pygame.Rect = pygame.Rect(
-    MAP_RECT.centerx - 110, MAP_RECT.y + TOP_BAR_HEIGHT + 34, 220, 32
+    AUTO_BTN_RECT.left - _GAP - _SKIP_W, _BTN_Y, _SKIP_W, _BTN_H
 )
 
 
 class HUD:
-    """Barra superior de informações da partida."""
+    """Barra superior de informações e controles da partida."""
 
     def __init__(self) -> None:
-        self._fonte = pygame.font.SysFont("monospace", 23)
-        self._fonte_pequena = pygame.font.SysFont("monospace", 20)
-        self._fonte_btn = pygame.font.SysFont(None, 22, bold=True)
-        # Surface cacheada — tamanho fixo, criada uma vez
-        self._barra_topo = pygame.Surface((MAP_RECT.width, TOP_BAR_HEIGHT), pygame.SRCALPHA)
-        self._barra_topo.fill(COR_BARRA_HUD_TOPO)
+        self._fonte_stat  = pygame.font.SysFont("monospace", 15, bold=True)
+        self._fonte_label = pygame.font.SysFont("monospace", 13)
+        self._fonte_btn   = pygame.font.SysFont("monospace", 13, bold=True)
+        self._fonte_alert = pygame.font.SysFont("liberationsans", 16, bold=True)
+        self._fonte_cd    = pygame.font.SysFont("monospace", 14)
 
-    # ------------------------------------------------------------------ #
-    # Botões (rects fixos; lógica de clique fica no main)
-    # ------------------------------------------------------------------ #
+    # ── API pública (rects para detecção de clique no main) ─────────────────
     @staticmethod
     def speed_button_rect() -> pygame.Rect:
-        """Rect do botão de velocidade (2×)."""
         return SPEED_BTN_RECT
 
     @staticmethod
     def skip_button_rect() -> pygame.Rect:
-        """Rect do botão de pular onda (válido só quando o Skip está disponível)."""
         return SKIP_BTN_RECT
 
     @staticmethod
     def auto_button_rect() -> pygame.Rect:
-        """Rect do botão Auto-Skip (toggle, sempre clicável durante o jogo)."""
         return AUTO_BTN_RECT
 
+    # ── Render principal ─────────────────────────────────────────────────────
     def draw(
         self,
         surface: pygame.Surface,
@@ -76,114 +96,129 @@ class HUD:
         skip_bonus: int = 0,
         auto_skip: bool = False,
     ) -> None:
-        """Desenha a faixa superior (moedas à esquerda, onda no centro, vidas à direita)."""
-        # Fundo da faixa (Surface cacheada em __init__).
-        surface.blit(self._barra_topo, (MAP_RECT.x, MAP_RECT.y))
+        bx = MAP_RECT.x
+        by = MAP_RECT.y
+        bw = MAP_RECT.width
 
-        meio_y = MAP_RECT.y + TOP_BAR_HEIGHT // 2
+        # Fundo da barra + borda inferior.
+        pygame.draw.rect(surface, COR_HUD_BARRA_BG, (bx, by, bw, TOP_BAR_HEIGHT))
+        pygame.draw.line(
+            surface, COR_HUD_BORDA,
+            (bx, by + TOP_BAR_HEIGHT - 1), (bx + bw, by + TOP_BAR_HEIGHT - 1),
+        )
 
-        # Esquerda: $ valor (dourado) + label "Mortes:" dim + valor branco.
-        moedas_val = self._fonte.render(f"$ {coins}", True, COLOR_GOLD)
-        surface.blit(moedas_val, (MAP_RECT.x + 16, meio_y - moedas_val.get_height() // 2))
-        x_mortes = MAP_RECT.x + 16 + moedas_val.get_width() + 18
-        lbl_mortes = self._fonte_pequena.render("Mortes:", True, COR_LABEL_HUD)
-        surface.blit(lbl_mortes, (x_mortes, meio_y - lbl_mortes.get_height() // 2))
-        val_mortes = self._fonte.render(str(kills), True, COR_TEXTO)
-        surface.blit(val_mortes, (x_mortes + lbl_mortes.get_width() + 4, meio_y - val_mortes.get_height() // 2))
+        meio_y = by + TOP_BAR_HEIGHT // 2
 
-        # Centro: "Onda" dim + "wave/total" branco.
-        lbl_onda = self._fonte_pequena.render("Onda", True, COR_LABEL_HUD)
-        val_onda = self._fonte.render(f"{wave} / {total_waves}", True, COR_TEXTO)
-        bloco_w = lbl_onda.get_width() + 5 + val_onda.get_width()
-        bx = MAP_RECT.centerx - bloco_w // 2
-        surface.blit(lbl_onda, (bx, meio_y - lbl_onda.get_height() // 2))
-        surface.blit(val_onda, (bx + lbl_onda.get_width() + 5, meio_y - val_onda.get_height() // 2))
+        # ── Stats à esquerda ─────────────────────────────────────────────────
+        x = bx + 12
+        x = self._stat(surface, x, meio_y, "$", str(coins), COLOR_GOLD)
+        x = self._stat(surface, x + 18, meio_y, "Mortes", str(kills), COR_TEXTO)
 
-        # Direita: "Vidas:" dim + valor cor-coded.
+        # Onda: valor branco + /total dim
+        x += 18
+        lbl_o = self._fonte_label.render("Onda", True, COR_LABEL_HUD)
+        surface.blit(lbl_o, lbl_o.get_rect(midleft=(x, meio_y)))
+        x += lbl_o.get_width() + 5
+        onda_v = self._fonte_stat.render(str(wave), True, COR_TEXTO)
+        surface.blit(onda_v, onda_v.get_rect(midleft=(x, meio_y)))
+        x += onda_v.get_width()
+        onda_t = self._fonte_label.render(f"/{total_waves}", True, COR_LABEL_HUD)
+        surface.blit(onda_t, onda_t.get_rect(midleft=(x, meio_y)))
+        x += onda_t.get_width() + 18
+
+        # Tempo (ciano, sem label)
+        if tempo_decorrido is not None and tempo_decorrido > 0:
+            m = int(tempo_decorrido) // 60
+            s = int(tempo_decorrido) % 60
+            crono = self._fonte_stat.render(f"{m:02d}:{s:02d}", True, COR_CIANO)
+            surface.blit(crono, crono.get_rect(midleft=(x, meio_y)))
+            x += crono.get_width() + 18
+
+        # Vidas (cor-coded)
         if lives > 6:
             cor_vida = COR_VIDA_OK
         elif lives >= 3:
             cor_vida = COR_VIDA_ALERTA
         else:
             cor_vida = COR_VIDA_CRITICA
-        val_vidas = self._fonte.render(str(lives), True, cor_vida)
-        lbl_vidas = self._fonte_pequena.render("Vidas:", True, COR_LABEL_HUD)
-        x_vidas = MAP_RECT.right - val_vidas.get_width() - lbl_vidas.get_width() - 20
-        surface.blit(lbl_vidas, (x_vidas, meio_y - lbl_vidas.get_height() // 2))
-        surface.blit(val_vidas, (x_vidas + lbl_vidas.get_width() + 4, meio_y - val_vidas.get_height() // 2))
+        self._stat(surface, x, meio_y, "Vidas", str(lives), cor_vida)
 
-        # Abaixo do centro: contagem regressiva (ciano) ou aviso de boss (vermelho piscante).
+        # ── Botões à direita ─────────────────────────────────────────────────
+        mx, my = pygame.mouse.get_pos()
+
+        ativo_2x = speed_multiplier >= 2.0
+        self._botao_hud(
+            surface, SPEED_BTN_RECT, "2x" if ativo_2x else "1x",
+            ativo=ativo_2x, hover=SPEED_BTN_RECT.collidepoint(mx, my),
+        )
+        self._botao_hud(
+            surface, AUTO_BTN_RECT, "AUTO",
+            ativo=auto_skip, hover=AUTO_BTN_RECT.collidepoint(mx, my),
+        )
+        if skip_disponivel:
+            self._botao_hud(
+                surface, SKIP_BTN_RECT, f">> SKIP  +${skip_bonus}",
+                ativo=False, skip=True,
+                hover=SKIP_BTN_RECT.collidepoint(mx, my),
+            )
+
+        # ── Abaixo da barra: alerta de boss ou countdown ──────────────────────
+        sub_y = by + TOP_BAR_HEIGHT + 14
         if boss_wave:
-            # Pisca: alterna visível/oculto a cada 0.5s.
             if (pygame.time.get_ticks() // 500) % 2 == 0:
-                aviso = self._fonte.render("!! BOSS !!", True, COR_BOSS_ALERTA)
-                surface.blit(
-                    aviso,
-                    aviso.get_rect(
-                        center=(MAP_RECT.centerx, MAP_RECT.y + TOP_BAR_HEIGHT + 16)
-                    ),
-                )
+                aviso = self._fonte_alert.render("!! BOSS !!", True, COR_BOSS_ALERTA)
+                surface.blit(aviso, aviso.get_rect(center=(MAP_RECT.centerx, sub_y)))
         elif next_wave_in is not None:
-            aviso = self._fonte_pequena.render(
+            cd = self._fonte_cd.render(
                 f"Próxima onda: {next_wave_in:.0f}s", True, COR_CIANO
             )
-            surface.blit(
-                aviso,
-                aviso.get_rect(center=(MAP_RECT.centerx, MAP_RECT.y + TOP_BAR_HEIGHT + 14)),
-            )
+            surface.blit(cd, cd.get_rect(center=(MAP_RECT.centerx, sub_y)))
 
-        # Skip durante a wave: só aparece quando disponível (15–20s após o
-        # início), com o bônus de moedas calculado no chamador.
-        if skip_disponivel:
-            self._desenhar_botao_skip(surface, skip_bonus)
+    # ── Helpers ──────────────────────────────────────────────────────────────
+    def _stat(
+        self,
+        surface: pygame.Surface,
+        x: int,
+        meio_y: int,
+        label: str,
+        valor: str,
+        cor_valor: tuple,
+    ) -> int:
+        """Desenha `label valor` inline; retorna o x após o bloco."""
+        lbl = self._fonte_label.render(label, True, COR_LABEL_HUD)
+        val = self._fonte_stat.render(valor, True, cor_valor)
+        surface.blit(lbl, lbl.get_rect(midleft=(x, meio_y)))
+        surface.blit(val, val.get_rect(midleft=(x + lbl.get_width() + 4, meio_y)))
+        return x + lbl.get_width() + 4 + val.get_width()
 
-        # Botões de velocidade (2×) e Auto-Skip — sempre durante o jogo.
-        self._desenhar_botao_speed(surface, speed_multiplier)
-        self._desenhar_botao_auto(surface, auto_skip)
-
-        # Cronômetro da partida (canto direito, ABAIXO do botão Auto-Skip para
-        # não sobrepô-lo — Bloco 7, v1.2.1; antes colidia com o AUTO_BTN_RECT).
-        if tempo_decorrido is not None and tempo_decorrido > 0:
-            m = int(tempo_decorrido) // 60
-            s = int(tempo_decorrido) % 60
-            crono = self._fonte.render(f"{m:02d}:{s:02d}", True, COR_CIANO)
-            surface.blit(
-                crono,
-                crono.get_rect(topright=(MAP_RECT.right - 16, AUTO_BTN_RECT.bottom + 8)),
-            )
-
-    def _desenhar_botao_skip(self, surface: pygame.Surface, bonus: int) -> None:
-        """Desenha o botão [⏩ SKIP +$bonus]."""
-        rect = SKIP_BTN_RECT
-        pygame.draw.rect(surface, COR_SKIP_FUNDO, rect, border_radius=6)
-        pygame.draw.rect(surface, COR_SKIP_BORDA, rect, 2, border_radius=6)
-        txt = self._fonte_btn.render(f">> SKIP  +${bonus}", True, COR_SKIP_TEXTO)
-        surface.blit(txt, txt.get_rect(center=rect.center))
-
-    def _desenhar_botao_auto(self, surface: pygame.Surface, ativo: bool) -> None:
-        """Desenha o toggle [AUTO]: cinza (desativo) / verde (ativo)."""
-        rect = AUTO_BTN_RECT
-        cor_borda = COR_BTN_ATIVO if ativo else COR_BTN_INATIVO
-        cor_txt = COR_BTN_TEXTO_ATIVO if ativo else COR_BTN_TEXTO_INATIVO
-        pygame.draw.rect(surface, COR_BTN_FUNDO, rect, border_radius=6)
-        pygame.draw.rect(surface, cor_borda, rect, 2, border_radius=6)
-        txt = self._fonte_btn.render("AUTO", True, cor_txt)
-        surface.blit(txt, txt.get_rect(center=rect.center))
-
-    def _desenhar_botao_speed(self, surface: pygame.Surface, mult: float) -> None:
-        """Desenha o botão de velocidade: [1×] cinza ou [2×] dourado piscante."""
-        rect = SPEED_BTN_RECT
-        ativo = mult >= 2.0
+    def _botao_hud(
+        self,
+        surface: pygame.Surface,
+        rect: pygame.Rect,
+        texto: str,
+        ativo: bool = False,
+        skip: bool = False,
+        hover: bool = False,
+    ) -> None:
+        """Botão estilo btn-hud do HTML de referência."""
         if ativo:
-            piscar = (pygame.time.get_ticks() // 400) % 2 == 0
-            cor_borda = COLOR_GOLD if piscar else COR_BTN_SPEED_ESCURO
-            cor_txt = COLOR_GOLD
-            label = "2x"
+            cor_bg    = COLOR_GOLD
+            cor_borda = COLOR_GOLD
+            cor_txt   = COR_BTN_HUD_ATIVO_TX
+        elif skip:
+            cor_bg    = COR_BTN_HUD_HOVER_BG if hover else COLOR_CARD_BG
+            cor_borda = COR_VERDE_NEON
+            cor_txt   = (5, 10, 0) if hover else COR_VERDE_NEON
+        elif hover:
+            cor_bg    = COR_BTN_HUD_HOVER_BG
+            cor_borda = COLOR_GOLD
+            cor_txt   = COLOR_GOLD
         else:
-            cor_borda = COR_BTN_INATIVO
-            cor_txt = COR_BTN_TEXTO_INATIVO
-            label = "1x"
-        pygame.draw.rect(surface, COR_BTN_FUNDO, rect, border_radius=6)
-        pygame.draw.rect(surface, cor_borda, rect, 2, border_radius=6)
-        txt = self._fonte_btn.render(label, True, cor_txt)
-        surface.blit(txt, txt.get_rect(center=rect.center))
+            cor_bg    = COLOR_CARD_BG
+            cor_borda = COR_BORDA_SUTIL
+            cor_txt   = COR_BTN_HUD_TEXTO
+
+        pygame.draw.rect(surface, cor_bg, rect)
+        pygame.draw.rect(surface, cor_borda, rect, 1)
+        lbl = self._fonte_btn.render(texto, True, cor_txt)
+        surface.blit(lbl, lbl.get_rect(center=rect.center))

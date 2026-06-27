@@ -219,10 +219,11 @@ class MenuScreen:
 
         # Botões centralizados.
         self.botao_jogar = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(240), text="JOGAR", manager=manager
+            relative_rect=_rect_centralizado(240), text="JOGAR", manager=manager,
+            object_id="#btn_primario",
         )
         self.botao_leaderboard = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(302), text="🏆 Leaderboard", manager=manager
+            relative_rect=_rect_centralizado(302), text="LEADERBOARD", manager=manager
         )
         self.botao_conquistas = pygame_gui.elements.UIButton(
             relative_rect=_rect_centralizado(364), text="CONQUISTAS", manager=manager
@@ -239,7 +240,7 @@ class MenuScreen:
         # Botão de atualização: menor que os demais, abaixo de SAIR.
         self.botao_atualizar = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(CENTRO_X - 100, 614, 200, 42),
-            text="🔄 Atualizar",
+            text="ATUALIZAR",
             manager=manager,
         )
         # Botão de changelog: pequeno, fixo no canto superior direito (emoji não
@@ -376,7 +377,8 @@ class PauseScreen:
         self._overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         self._overlay.fill(COR_OVERLAY_PAUSE)
         self.botao_continuar = pygame_gui.elements.UIButton(
-            relative_rect=_rect_centralizado(330), text="CONTINUAR", manager=manager
+            relative_rect=_rect_centralizado(330), text="CONTINUAR", manager=manager,
+            object_id="#btn_primario",
         )
         self.botao_menu = pygame_gui.elements.UIButton(
             relative_rect=_rect_centralizado(410),
@@ -417,6 +419,7 @@ class _EndScreen:
             relative_rect=_rect_centralizado(360),
             text="JOGAR NOVAMENTE",
             manager=manager,
+            object_id="#btn_primario",
         )
         self.botao_menu = pygame_gui.elements.UIButton(
             relative_rect=_rect_centralizado(440),
@@ -474,9 +477,9 @@ class GameOverScreen(_EndScreen):
         self._fonte_msg = pygame.font.SysFont("monospace", 36)
         self._fonte_ph = pygame.font.SysFont("monospace", 22)
         self._fonte_sub = pygame.font.SysFont("monospace", 22)
-        # Repositiona botões para o rodapé do painel
-        self.botao_retry.set_relative_position((CENTRO_X - BTN_W // 2, 540))
-        self.botao_menu.set_relative_position((CENTRO_X - BTN_W // 2, 610))
+        # Repositiona botões para dentro do painel (painel height=620, center y=360)
+        self.botao_retry.set_relative_position((CENTRO_X - BTN_W // 2, 490))
+        self.botao_menu.set_relative_position((CENTRO_X - BTN_W // 2, 558))
 
     def draw(self, surface: pygame.Surface) -> None:
         """Painel centralizado com border-top vermelho + stats (espelha .vitoria-painel)."""
@@ -484,8 +487,8 @@ class GameOverScreen(_EndScreen):
 
         surface.fill(COR_FUNDO_TELA)
 
-        painel = pygame.Rect(0, 0, 520, 520)
-        painel.center = (CENTRO_X, WINDOW_HEIGHT // 2 - 30)
+        painel = pygame.Rect(0, 0, 520, 620)
+        painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
         pygame.draw.rect(surface, COR_FUNDO_MODAL, painel)
         pygame.draw.rect(surface, (80, 12, 10), painel, 1)
         pygame.draw.line(surface, COR_GAMEOVER_TITULO, painel.topleft, painel.topright, 3)
@@ -556,8 +559,8 @@ class VictoryScreen(_EndScreen):
             self._img = self._ajustar_imagem(victory_image)
 
         # Reposiciona os botões para o rodapé (abrem espaço p/ imagem + textos).
-        self.botao_retry.set_relative_position((CENTRO_X - BTN_W // 2, 560))
-        self.botao_menu.set_relative_position((CENTRO_X - BTN_W // 2, 630))
+        self.botao_retry.set_relative_position((CENTRO_X - BTN_W // 2, 530))
+        self.botao_menu.set_relative_position((CENTRO_X - BTN_W // 2, 598))
 
     def _ajustar_imagem(self, img: pygame.Surface) -> pygame.Surface:
         """Escala a imagem preservando proporção dentro de IMG_W×IMG_H."""
@@ -574,8 +577,8 @@ class VictoryScreen(_EndScreen):
         surface.fill(COR_FUNDO_TELA)
 
         # Painel central estilizado (border-top 3px dourado, como HTML .vitoria-painel)
-        painel = pygame.Rect(0, 0, 520, 560)
-        painel.center = (CENTRO_X, WINDOW_HEIGHT // 2 - 30)
+        painel = pygame.Rect(0, 0, 520, 660)
+        painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
         pygame.draw.rect(surface, COR_FUNDO_MODAL, painel)
         pygame.draw.rect(surface, COR_DOURADO_ESCURO, painel, 1)
         pygame.draw.line(surface, COLOR_GOLD, painel.topleft, painel.topright, 3)

@@ -22,7 +22,7 @@ SPRITE_SIZE: int = CELL_SIZE - 8  # 56×56
 
 # Sistema de upgrade.
 MAX_LEVEL: int = 3
-UPGRADE_DANO: float = 0.30       # +30% de dano por nível
+UPGRADE_DANO: float = 0.45       # +45% de dano por nível (buff +15%)
 UPGRADE_ALCANCE: float = 0.10    # +10% de alcance por nível
 UPGRADE_CADENCIA: float = 0.10   # +10% de cadência por nível
 UPGRADE_CUSTO_BASE: float = 0.60  # custo do 1º upgrade = 60% do custo base
@@ -64,6 +64,9 @@ class Tower:
         self.damage: int = type(self).damage
         self.range_px: int = type(self).range_px
         self.fire_rate: float = type(self).fire_rate
+        # Sinal de VFX AOE: preenchido durante update() quando torre dispara AOE;
+        # lido pelo game loop para criar o flash visual; resetado antes de cada update.
+        self.aoe_flash: dict | None = None
         # Sprite escalado para uma célula (56×56). Mesmo torres com cell_radius>0
         # (Speed3/Speed7, que bloqueiam área maior no grid) usam o sprite de uma
         # célula — manter proporcional ao resto evita torres visualmente enormes.
@@ -193,9 +196,9 @@ class Speed1(Tower):
 
     nome = "Shake It Speed"
     cost = 50
-    damage = 9        # já com buff v1.2.1 (+5%: 8.4 -> 8)
+    damage = 9        
     range_px = 120
-    fire_rate = 2.10  # já com buff v1.2.1 (+5%); ponto forte: cadência alta
+    fire_rate = 2.10  
     slow = False
     asset_name = "speed1"
     description = "Cadência alta. Fraco contra tanques."
@@ -205,10 +208,10 @@ class Speed2(Tower):
     """Suprised Speed — early/mid, maior alcance."""
 
     nome = "Suprised Speed"
-    cost = 75
-    damage = 14      # já com buff v1.2.1 (+5%: 10.5 -> 11)
+    cost = 90
+    damage = 17      
     range_px = 220   # ponto forte: maior alcance
-    fire_rate = 1.15  # já com buff v1.2.1 (+5%)
+    fire_rate = 1.30  
     slow = False
     asset_name = "speed2"
     description = "Alcance amplo. Cadência lenta."
@@ -218,10 +221,10 @@ class Speed3(Tower):
     """SayWallahi Speed — sniper de dano massivo, alcance curto."""
 
     nome = "SayWallahi Speed"
-    cost = 110
-    damage = 47   # já com buff v1.2.1 (+5%: 47.25 -> 47); ponto forte: dano altíssimo
+    cost = 120
+    damage = 50   # já com buff v1.2.1 (+5%: 47.25 -> 47); ponto forte: dano altíssimo
     range_px = 135
-    fire_rate = 0.55  # já com buff v1.2.1 (+5%)
+    fire_rate = 0.40  # já com buff v1.2.1 (+5%)
     slow = False
     asset_name = "speed3"
     description = "Dano massivo. Alcance curto e lento."
@@ -229,17 +232,37 @@ class Speed3(Tower):
 
 
 class Speed4(Tower):
-    """KindaHomeless Speed — suporte de lentidão; só 1 no campo."""
+    """KindaHomeless Speed — campo de lentidão AOE; aplica slow em todos no range."""
 
     nome = "KindaHomeless Speed"
-    cost = 75  # v1.2.1: luxo de suporte (era 95); sem buff (papel de suporte)
-    damage = 6
-    range_px = 160
-    fire_rate = 1.8
-    slow = True  # ponto forte: aplica lentidão
+    cost = 75
+    damage = 0       # não causa dano — só desacelera
+    range_px = 150
+    fire_rate = 1.0  # pulsa a cada 1s para reaplicar slow
+    slow = False
     asset_name = "speed4"
-    description = "Aplica lentidão. Só 1 por vez."
-    max_no_campo = 1  # limite de 1 instância (Ancelotti é imune ao slow)
+    description = "AOE slow 5s em campo inteiro. Não acumula."
+    max_no_campo = 2
+
+    def update(self, dt: float, enemies: list[Enemy]) -> None:
+        """Pulsa AOE slow — sem projétil. Emite aoe_flash no disparo."""
+        if self.fire_timer > 0:
+            self.fire_timer -= dt
+        if self.fire_timer <= 0:
+            self._aplicar_slow_aoe(enemies)
+            self.fire_timer = 1.0 / self.fire_rate
+            self.aoe_flash = {"cor": (80, 180, 255), "raio": self.range_px, "dur": 0.55}
+        return None
+
+    def _aplicar_slow_aoe(self, enemies: list[Enemy]) -> None:
+        """Aplica slow de 5s a todos no range. Não acumula: ignora já slowed."""
+        cx, cy = self.centro_pixel()
+        r2 = self.range_px ** 2
+        for e in enemies:
+            dx = e.x - cx
+            dy = e.y - cy
+            if dx * dx + dy * dy <= r2 and e.slow_timer <= 0:
+                e.apply_slow(5.0)
 
 
 class Speed5(Tower):
@@ -257,11 +280,11 @@ class Speed5(Tower):
     fire_rate = 1.575  # já com buff v1.2.1 (+5%)
     slow = False
     asset_name = "speed5"
-    description = "Versátil. Buff dobra dano por 5s (CD: 15s)."
+    description = "Versátil. Buff dobra dano por 40s, AOE a cada 6s (CD: 15s)."
     cell_radius = 0
 
     # Duração do buff (segundos).
-    BUFF_DURATION: float = 5.0
+    BUFF_DURATION: float = 40.0
 
     def __init__(self, assets, x: float, y: float, cell_x: int, cell_y: int) -> None:
         super().__init__(assets, x, y, cell_x, cell_y)
@@ -279,38 +302,65 @@ class Speed5(Tower):
         except KeyError:
             self._sprite_buff = self._sprite_base  # asset ausente: mantém o base
 
+    # Intervalo AOE do buff (segundos entre disparos em área).
+    BUFF_AOE_INTERVAL: float = 6.0
+    # Multiplicador de range no buff.
+    BUFF_RANGE_MULT: float = 1.20
+
     def activate_buff(self) -> bool:
-        """Ativa o buff se possível (não ativo e fora de cooldown). Retorna sucesso."""
+        """Ativa o buff se possível. Range +20%, AOE a cada 6s, dano dobrado."""
         if not self.buff_active and self.cooldown_timer <= 0.0:
             self.buff_active = True
             self.buff_timer = self.BUFF_DURATION
-            self.sprite = self._sprite_buff  # transição: vira modo buff (speed6)
+            self.sprite = self._sprite_buff
+            self.range_px = round(type(self).range_px * self.BUFF_RANGE_MULT)
+            self.fire_timer = 0.0  # dispara imediatamente na ativação
             return True
         return False
 
-    def refresh_sprite(self) -> None:
-        """Restaura o sprite correto conforme o estado do buff.
+    def _desativar_buff(self) -> None:
+        self.buff_active = False
+        self.cooldown_timer = self.buff_cooldown
+        self.sprite = self._sprite_base
+        self.range_px = type(self).range_px  # restaura range original
 
-        Usado após o efeito do Speed7 (que troca o sprite de todas as torres por
-        speed8 e depois reverte): se o buff ainda está ativo, o sprite deve
-        voltar para speed6, não para o base.
-        """
+    def refresh_sprite(self) -> None:
+        """Restaura sprite correto após efeito do Speed7."""
         self.sprite = self._sprite_buff if self.buff_active else self._sprite_base
 
-    def update(self, dt: float, enemies: list[Enemy]) -> Projectile | None:
-        """Avança os timers do buff; o dano dobrado é aplicado em effective_damage."""
+    def update(self, dt: float, enemies: list[Enemy]) -> "Projectile | list[Projectile] | None":
+        """Buff ativo → AOE a cada 6s; inativo → disparo único padrão."""
+        # Timers de buff/cooldown.
         if self.buff_active:
             self.buff_timer -= dt
             if self.buff_timer <= 0.0:
-                self.buff_active = False
-                self.cooldown_timer = self.buff_cooldown
-                self.sprite = self._sprite_base  # transição: volta ao base (speed5)
+                self._desativar_buff()
         elif self.cooldown_timer > 0.0:
             self.cooldown_timer -= dt
-        return super().update(dt, enemies)
+
+        if self.buff_active:
+            # Modo AOE: ataca todos no range a cada BUFF_AOE_INTERVAL segundos.
+            if self.fire_timer > 0:
+                self.fire_timer -= dt
+            if self.fire_timer <= 0:
+                cx, cy = self.centro_pixel()
+                r2 = self.range_px ** 2
+                projs = [
+                    Projectile(cx, cy, e, self.effective_damage(), False)
+                    for e in enemies
+                    if (e.x - cx) ** 2 + (e.y - cy) ** 2 <= r2
+                ]
+                self.fire_timer = self.BUFF_AOE_INTERVAL
+                if projs:
+                    self.aoe_flash = {"cor": (255, 200, 60), "raio": self.range_px, "dur": 0.45}
+                return projs if projs else None
+            return None
+
+        # Modo normal: disparo único herdado de Tower.
+        return Tower.update(self, dt, enemies)
 
     def effective_damage(self) -> int:
-        """Dano (já com upgrade) dobrado enquanto o buff está ativo."""
+        """Dano dobrado enquanto o buff está ativo."""
         return self.damage * 2 if self.buff_active else self.damage
 
 

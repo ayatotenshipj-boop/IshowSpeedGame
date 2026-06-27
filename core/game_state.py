@@ -46,3 +46,7 @@ class GameState:
     skip_threshold: float = 0.0    # limiar sorteado (15–20s); 0 = não armado
     auto_skip: bool = False        # toggle: aciona o skip sozinho ao ficar disponível
     auto_skip_timer: float = 3.0   # countdown do auto-skip quando disponível
+    # VFX de AOE: anéis expansivos gerados por Speed4 (slow) e Speed5 buff.
+    aoe_flashes: list = field(default_factory=list)
+    # Waves congeladas enquanto o seletor de dificuldade estiver visível.
+    waves_congeladas: bool = False

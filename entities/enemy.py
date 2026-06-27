@@ -102,12 +102,24 @@ class Enemy:
     # Render
     # ------------------------------------------------------------------ #
     def draw(self, surface: pygame.Surface) -> None:
-        """Desenha o sprite centralizado e a barra de HP (se ferido)."""
+        """Desenha o sprite, barra de HP e ícone de slow quando ativo."""
         rect = self.sprite.get_rect(center=(int(self.x), int(self.y)))
         surface.blit(self.sprite, rect)
 
         if self.hp < self.max_hp:
             self._draw_hp_bar(surface, rect)
+
+        if self.slow_timer > 0.0:
+            self._draw_slow_vfx(surface, rect)
+
+    def _draw_slow_vfx(self, surface: pygame.Surface, rect: pygame.Rect) -> None:
+        """Três pontos azuis em triângulo acima do sprite — indica lentidão."""
+        cx = rect.centerx
+        ty = rect.top - 2
+        pts = [(cx - 6, ty - 2), (cx + 6, ty - 2), (cx, ty - 10)]
+        for px, py in pts:
+            pygame.draw.circle(surface, (80, 180, 255), (px, py), 3)
+            pygame.draw.circle(surface, (200, 230, 255), (px, py), 1)
 
     def _draw_hp_bar(self, surface: pygame.Surface, sprite_rect: pygame.Rect) -> None:
         """Barra verde (HP atual) sobre fundo vermelho (HP máximo)."""
@@ -176,8 +188,8 @@ class Labubu4(Enemy):
     def _ao_passar_waypoint(self) -> None:
         """A cada curva além da 4ª, perde 10% da velocidade base (piso 30%)."""
         self.curvas += 1
-        if self.curvas > 4:
-            reducao = (self.curvas - 4) * 0.05
+        if self.curvas > 5:
+            reducao = (self.curvas - 4) * 0.15
             self.speed = max(
                 self.velocidade_base * 0.30,
                 self.velocidade_base * (1.0 - reducao),

@@ -91,7 +91,7 @@ MODOS_DIFICULDADE: dict[str, dict] = {
         "nome": "Difícil",
         "hp_mult": 1.5,      # Labubus com 150% do HP
         "speed_mult": 1.2,   # 20% mais rápidos
-        "reward_mult": 0.7,  # 30% menos moedas
+        "reward_mult": 0.8,  # 20% menos moedas
         "lives": 6,          # poucas vidas
         "descricao": "Para quem domina o jogo",
     },
@@ -180,19 +180,24 @@ ALPHA_MODAL_BG        = 200   # fundo escuro sob modais
 ALPHA_PATH_VISIVEL    = 160   # path quando carta selecionada
 
 # HUD — barra superior e botões
-COR_BARRA_HUD_TOPO   = (10, 10, 20, 170)   # fundo SRCALPHA da faixa de topo
+COR_BARRA_HUD_TOPO   = (10, 10, 20, 170)   # legado (não usado)
+COR_HUD_BARRA_BG     = (5, 5, 5)           # fundo da barra de HUD topo (#050505)
+COR_HUD_BORDA        = (26, 24, 0)         # borda barra e botões HUD (#1a1800)
+COR_BTN_HUD_TEXTO    = (100, 100, 64)      # texto inativo dos botões HUD (#666640)
+COR_BTN_HUD_HOVER_BG = (26, 24, 0)        # bg do botão HUD em hover (#1a1800)
+COR_BTN_HUD_ATIVO_TX = (10, 8, 0)         # texto escuro no botão HUD ativo
 COR_VIDA_OK          = (80, 220, 90)        # vidas > 6
 COR_VIDA_ALERTA      = (240, 210, 60)       # vidas 3-6
 COR_VIDA_CRITICA     = (220, 60, 60)        # vidas < 3
-COR_BTN_FUNDO        = (30, 30, 45)        # fundo dos botões Speed/Auto/Skip
-COR_BTN_INATIVO      = (120, 120, 130)     # borda/texto botão inativo
-COR_BTN_TEXTO_INATIVO = (180, 180, 190)
-COR_BTN_ATIVO        = (90, 220, 110)      # borda/texto botão ativo (verde)
-COR_BTN_TEXTO_ATIVO  = (170, 255, 190)
-COR_BTN_SPEED_ESCURO = (150, 120, 30)      # dourado escuro no piscar do 2×
-COR_SKIP_FUNDO       = (40, 90, 50)        # fundo do botão SKIP
-COR_SKIP_BORDA       = (90, 220, 110)      # borda verde do botão SKIP
-COR_SKIP_TEXTO       = (220, 255, 220)     # texto do botão SKIP
+COR_BTN_FUNDO        = (30, 30, 45)        # legado
+COR_BTN_INATIVO      = (120, 120, 130)     # legado
+COR_BTN_TEXTO_INATIVO = (180, 180, 190)    # legado
+COR_BTN_ATIVO        = (90, 220, 110)      # legado
+COR_BTN_TEXTO_ATIVO  = (170, 255, 190)     # legado
+COR_BTN_SPEED_ESCURO = (150, 120, 30)      # legado
+COR_SKIP_FUNDO       = (40, 90, 50)        # legado
+COR_SKIP_BORDA       = (90, 220, 110)      # legado
+COR_SKIP_TEXTO       = (220, 255, 220)     # legado
 COR_BOSS_ALERTA      = (230, 50, 50)       # texto piscante de boss
 
 # Cartas
