@@ -1,0 +1,78 @@
+{
+    "defaults": {
+        "colours": {
+            "normal_bg":      "#111108",
+            "hovered_bg":     "#1a1a00",
+            "active_bg":      "#0d0d00",
+            "dark_bg":        "#0a0a06",
+            "disabled_bg":    "#090908",
+            "selected_bg":    "#111108",
+
+            "normal_text":    "#aaaaaa",
+            "hovered_text":   "#ffd040",
+            "active_text":    "#e0b000",
+            "disabled_text":  "#3a3a28",
+            "selected_text":  "#ffd040",
+
+            "normal_border":  "#2a2a18",
+            "hovered_border": "#ffd040",
+            "active_border":  "#ffd040",
+            "disabled_border":"#1a1a10",
+            "selected_border":"#ffd040",
+
+            "text_shadow": "#00000000",
+            "normal_text_shadow": "#00000000",
+            "hovered_text_shadow": "#00000000",
+            "active_text_shadow": "#00000000",
+            "selected_text_shadow": "#00000000",
+            "disabled_text_shadow": "#00000000"
+        }
+    },
+
+    "button": {
+        "font": {
+            "name": "bebas_neue",
+            "size": "17",
+            "bold": "0",
+            "italic": "0",
+            "regular_path": "assets/fonts/BebasNeue.ttf"
+        },
+        "misc": {
+            "border_width":  "1",
+            "border_radius": "0",
+            "shadow_width":  "0",
+            "shape": "rectangle"
+        }
+    },
+
+    "#btn_primario": {
+        "colours": {
+            "normal_bg":     "#ffd040",
+            "hovered_bg":    "#ffffff",
+            "active_bg":     "#e0b030",
+            "selected_bg":   "#ffd040",
+            "disabled_bg":   "#5a4a00",
+
+            "normal_text":   "#0a0800",
+            "hovered_text":  "#0a0800",
+            "active_text":   "#0a0800",
+            "selected_text": "#0a0800",
+            "disabled_text": "#3a3000",
+
+            "normal_border":  "#ffd040",
+            "hovered_border": "#ffffff",
+            "active_border":  "#e0b030",
+            "disabled_border":"#3a3000"
+        },
+        "misc": {
+            "border_width": "0",
+            "shadow_width": "0"
+        },
+        "font": {
+            "name": "bebas_neue",
+            "size": "19",
+            "bold": "0",
+            "regular_path": "assets/fonts/BebasNeue.ttf"
+        }
+    }
+}

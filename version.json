@@ -1,10 +1,10 @@
 {
-  "version": "1.3.4",
+  "version": "1.3.5",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "v1.3.4 - Visual, Boss e Conquistas\n\n[Visual]\n- Telas de Configuracoes, Multijogador, Conquistas e Atualizacao com visual renovado.\n\n[Configuracoes]\n- Opcao para desativar os dialogos de introducao (salva automaticamente).\n- Volume padrao da musica reduzido para 70%.\n- Barra de volume exibe a porcentagem correta.\n\n[Conquistas]\n- Nova conquista: Sem Piedade (⚡) — venca no Dificil com velocidade 2x desde o inicio.\n- Botao INICIAR EM 2x aparece na selecao de dificuldade quando Dificil e escolhido.\n- Desativar o 2x durante a partida cancela a conquista.\n\n[Torres]\n- Custo de melhoria fixo em 75% do preco da torre, independente do nivel.\n\n[Boss]\n- Ancelotti: velocidade aumentada de 55 para 65.\n- Ancelotti: nao pode ser atordoado nos primeiros 30 segundos de combate.\n- Ancelotti: recupera +15 HP por segundo quando esta sozinho no campo.\n- Ancelotti: entra em furia abaixo de 30% de vida (+40% de velocidade).\n- Invocacoes do Ancelotti agora sao Labubu4 com metade da vida e aparecem em posicoes variadas.\n\n[Intro]\n- Sequencia de dialogos da introducao ajustada.\n",
+  "changelog": "v1.3.5 - Update 1.3.5 com novas mudanças",
   "download_url": {
-    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.3.4/SpeedVsLabubu-Linux",
-    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.3.4/SpeedVsLabubu-Windows.exe"
+    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.3.5/SpeedVsLabubu-Linux",
+    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.3.5/SpeedVsLabubu-Windows.exe"
   },
   "files": []
 }

@@ -84,12 +84,7 @@ def _request(method: str, endpoint: str, body: dict | None = None, upsert: bool 
     except urllib.error.HTTPError as e:
         # CAPTURA O CORPO DO ERRO DO SUPABASE
         error_body = e.read().decode('utf-8')
-        print("\n" + "="*50)
-        print("🚨 ERRO DO SUPABASE DETECTADO 🚨")
-        print(f"Código: {e.code}")
-        print(f"Mensagem do Banco: {error_body}")
-        print("="*50 + "\n")
-        logger.warning("[Leaderboard] Sem conexão: %s", e)
+        logger.warning("[Leaderboard] Erro HTTP %s do Supabase: %s", e.code, error_body)
         return None
     except Exception as e:  # noqa: BLE001 — rede nunca pode crashar o jogo
         logger.warning("[Leaderboard] Sem conexão: %s", e)

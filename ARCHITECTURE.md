@@ -4,23 +4,22 @@
 
 ```
 ┌─────────────────────────────────────────┐
-│                  main.py                │  ← Entrypoint, inicializa tudo
+│                  main.py                │  ← Entrypoint + Game Loop
+│    handle_events → update → render      │    (loop real aqui, não em módulo separado)
 ├─────────────────────────────────────────┤
-│            GameStateManager             │  ← Controla qual estado está ativo
-│     MENU → PLAYING → PAUSED → GAMEOVER  │
-├─────────────────────────────────────────┤
-│               Game Loop                 │  ← core/game.py
-│    handle_events → update → render      │
+│  StateManager (core/state_manager.py)   │  ← Máquina de estados de telas (GameScreen)
+│  GameState    (core/game_state.py)      │  ← @dataclass: dados mutáveis da partida
 ├──────────────────┬──────────────────────┤
 │   LÓGICA (update)│  RENDER (draw)       │
 │                  │                      │
 │  WaveManager     │  GameMap             │
 │  PlacementGrid   │  HUD                 │
 │  Tower           │  CardHand            │
-│  Enemy / Boss    │  Menus (pygame-gui)  │
+│  Enemy / Boss    │  Menus               │
 │  Projectile      │                      │
 ├──────────────────┴──────────────────────┤
-│              AssetManager               │  ← Cache único de imagens/sons
+│  AssetManager (core/asset_manager.py)   │  ← Cache de imagens (PNG)
+│  AudioManager (core/audio.py)           │  ← Música e efeitos sonoros
 ├─────────────────────────────────────────┤
 │         config/settings.py              │  ← Constantes globais
 │         config/path.json                │  ← Waypoints do path
@@ -29,12 +28,17 @@
 
 ## Fluxo de Estados
 
+8 telas definidas em `core/state_manager.py` (`GameScreen` enum):
+
 ```
-[MENU] 
-  └─ Jogar ──► [PLAYING]
-                 ├─ ESC ──► [PAUSED] ──► Continuar ──► [PLAYING]
-                 ├─ Vida = 0 ──► [GAME_OVER]
-                 └─ Todas ondas vencidas ──► [VICTORY]
+[MENU]
+  └─ Jogar ──► [SELECAO_MODO]  (escolha de dificuldade)
+                 └──────────► [INTRO]  (cena de diálogo/cutscene)
+                                └──────► [PLAYING]
+                                           ├─ ESC ──► [PAUSED] ──► Continuar ──► [PLAYING]
+                                           ├─ Vida = 0 ──► [GAME_OVER]
+                                           └─ Todas ondas vencidas ──► [NOME_VITORIA]
+                                                                          └──► [VICTORY]
 ```
 
 ## Sistema de Grid / Placement
@@ -70,12 +74,17 @@ O `PlacementGrid` converte os waypoints em células bloqueadas automaticamente.
 ## Entities
 
 ### Tower (Speed)
+
+6 torres jogáveis em `entities/tower.py` (ver `TOWER_TYPES`):
 ```
 Speed1 — torre básica, barata, ataque rápido e fraco
-Speed2 — área de efeito pequena
-Speed3 — projétil lento mas dano alto
-Speed4 — torre de suporte, reduz velocidade dos inimigos
+Speed2 — alcance amplo, cadência lenta (sem AoE)
+Speed3 — sniper: dano massivo, alcance curto, cadência lenta
+Speed4 — AoE de slow: não causa dano, desacelera todos no range
+Speed5 — versátil; buff ativável dobra dano por 40s com AoE a cada 6s (CD: 15s); usa sprite speed6 no buff
+Speed7 — hitkill global (uso único por partida): mata todos os inimigos ao ser ativada; custo 1000
 ```
+Obs: speed6.png = sprite do buff do Speed5. speed8.png = sprite visual de todas as torres durante o efeito do Speed7. Não são cartas separadas.
 
 ### Enemy (Labubu)
 ```
@@ -103,9 +112,18 @@ HUD_RECT      = pygame.Rect(0, 620, 1280, 100) # barra inferior (cartas + stats)
 
 Assets carregados via `AssetManager.get(nome)` — nunca `pygame.image.load()` direto no código de entidade.
 
+## GameState vs. StateManager
+
+Distinção importante entre os dois módulos de estado:
+
+| Módulo | Classe | Papel |
+|--------|--------|-------|
+| `core/state_manager.py` | `StateManager` + enum `GameScreen` | Qual **tela** está ativa |
+| `core/game_state.py` | `@dataclass GameState` | **Dados** da partida em curso (moedas, vidas, torres, inimigos, timers, dificuldade, VFX) |
+
 ## UI com pygame-gui
 
-- `pygame_gui.UIManager` inicializado uma vez em `core/game.py`
+- `pygame_gui.UIManager` inicializado uma vez em `main.py`
 - Menus usam `UIButton`, `UILabel`, `UIPanel` do pygame-gui
 - HUD desenhado manualmente com Pygame (mais controle visual)
 - `CardHand` desenhada manualmente na `HUD_RECT`

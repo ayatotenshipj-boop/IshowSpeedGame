@@ -16,16 +16,22 @@
 
 | Agente | Modelo | Quando usar |
 |--------|--------|-------------|
-| `architect-reviewer` | Opus | Antes de qualquer mudança que afete múltiplos arquivos. Decisões de arquitetura, novos sistemas, balanceamento |
-| `code-reviewer` | Opus | Após concluir cada fase ou bloco. Revisão de qualidade, sintaxe, lógica |
+| `architect-reviewer` | Opus | Mudanças ≥3 arquivos, decisões de design, balanceamento, novos sistemas |
+| `code-reviewer` | Opus | Revisão profunda ao fechar uma fase; antes de release |
 | `debugger` | Sonnet | Quando `python main.py` falhar. Bug hunting cirúrgico |
-| `security-auditor` | Opus | Antes de publicar release. Revisar updater, Supabase, chaves expostas |
+| `security-auditor` | Opus | Somente antes de publicar release (updater, Supabase, chaves) |
+| `cavecrew-builder` | built-in¹ | Edição cirúrgica 1-2 arquivos; recusa escopo ≥3 |
+| `cavecrew-investigator` | built-in¹ | Localizar símbolo/definição pontual (~60% menos tokens que Explore) |
+| `cavecrew-reviewer` | built-in¹ | Revisão terse de diff; `path:line: severidade: problema. fix.` |
+
+¹ Agentes do plugin Caveman — gerenciados pelo harness, sem modelo fixo.
 
 **Como acionar:**
 ```
 Use o agente architect-reviewer para analisar X antes de implementar
 Use o agente code-reviewer para revisar os arquivos alterados nesta fase
 Use o agente debugger para identificar a causa do erro em Y
+Use o agente cavecrew-reviewer para revisar o diff do bloco atual
 ```
 
 ---
@@ -44,8 +50,8 @@ Nunca iniciar uma sessão de trabalho sem ativar estas:
 | `writing-plans` | Antes de qualquer bloco novo — documentar antes de implementar |
 | `pygame-ui-adapter` | Qualquer edição visual no Pygame — paleta, fontes, surfaces |
 
-**Skills do projeto (pasta `skills/`):**
-- `skills/pygame-ui-adapter/SKILL.md` — adaptação visual sem quebrar lógica
+**Skill do projeto (raiz do projeto):**
+- `pygame-ui-adapter-SKILL.md` — adaptação visual sem quebrar lógica
 
 ---
 
@@ -145,15 +151,35 @@ SELECT trigger_name FROM information_schema.triggers WHERE event_object_table = 
 ## Fluxo padrão de uma sessão de trabalho
 
 ```
-1. /plan                          → mostrar o que vai fazer antes de codar
-2. Acionar architect-reviewer     → validar abordagem
-3. Implementar bloco por bloco    → um arquivo de cada vez
-4. python main.py após cada fase  → nunca avançar com erro aberto
-5. /compact se contexto ficar longo
-6. code-reviewer ao concluir      → revisão final
-7. git add + commit + push        → só após aprovação
-8. tag + release se for versão    → GitHub Actions compila automaticamente
+1. /plan + writing-plans          → escopo antes de codar
+2. architect-reviewer (Opus)      → só se ≥3 arquivos ou decisão de design/balanceamento
+3. cavecrew-builder               → edição cirúrgica bloco a bloco (1-2 arquivos por vez)
+   └ ≥3 arquivos? volte ao plano e divida
+4. python main.py após cada bloco → nunca avançar com erro aberto
+5. cavecrew-reviewer              → revisão terse do diff do bloco
+6. caveman-stats → /compact       → se contexto inflou por varreduras grandes
+7. code-reviewer (Opus)           → revisão profunda ao fechar a fase
+8. caveman-commit                 → mensagem de commit PT-BR automática
+9. security-auditor               → SOMENTE antes de release
+10. bump version.json + tag       → GitHub Actions compila Linux + Windows
 ```
+
+## Situação → Ferramenta (referência rápida)
+
+| Situação | Ferramenta |
+|----------|-----------|
+| Contexto inflou | `caveman-stats` → `/compact` |
+| Antes de commitar | `caveman-commit` (PT-BR automático) |
+| Revisão rápida de diff | `cavecrew-reviewer` |
+| Revisão profunda de fase | `code-reviewer` (Opus) |
+| Revisão de arquitetura | `architect-reviewer` (Opus) |
+| Localizar onde X é definido | `cavecrew-investigator` |
+| Entender subsistema inteiro | Explore agent |
+| Edição cirúrgica 1-2 arquivos | `cavecrew-builder` |
+| Bug hunting | `debugger` (Sonnet) + `systematic-debugging` |
+| Balanceamento do jogo | `architect-reviewer` (Opus) |
+| Antes de publicar release | `security-auditor` (Opus) |
+| Estatísticas da sessão | `caveman-stats` |
 
 ---
 
@@ -165,11 +191,9 @@ SELECT trigger_name FROM information_schema.triggers WHERE event_object_table = 
 | `ARCHITECTURE.md` | Camadas, módulos, responsabilidades |
 | `PLAN.md` | Etapas originais (referência histórica) |
 | `FIXES_AND_IMPROVEMENTS.md` | Bugs conhecidos e melhorias planejadas |
-| `BUGFIX_CHANGELOG_1.md` | Primeira changelog de correções |
-| `REFINAMENTOS_V1.2.0.md` | Balanceamento e novas mecânicas |
-| `AJUSTES_V1.2.1.md` | Ajustes pós-refinamento |
 | `UI_VISUAL_ADAPTATION.md` | Guia de adaptação visual da UI |
-| `skills/pygame-ui-adapter/SKILL.md` | Skill de UI para este projeto |
+| `pygame-ui-adapter-SKILL.md` | Skill de UI para este projeto (raiz do projeto) |
+| `docs/historico/` | Changelogs históricos (BUGFIX, REFINAMENTOS, AJUSTES) |
 | `config/settings.py` | Constantes globais — paleta, resolução, economia |
 | `config/path.json` | Waypoints do caminho dos inimigos |
 | `version.json` | Versão local do jogo (auto-update) |

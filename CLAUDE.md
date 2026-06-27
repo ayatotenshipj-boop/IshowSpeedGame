@@ -14,7 +14,7 @@ Tower defense 2D em Python/Pygame. O jogador posiciona cartas "Speed" no campo p
 2. Nunca usar caminhos absolutos — sempre `pathlib.Path` relativo à raiz do projeto
 3. Nunca bloquear o game loop principal — sem `time.sleep()` fora do loop de eventos
 4. Todo asset carregado uma única vez no boot via `AssetManager`, nunca em runtime
-5. Estados do jogo gerenciados por `GameStateManager` (menu, jogo, pausa, game over)
+5. Estados do jogo gerenciados por `StateManager` em `core/state_manager.py` (8 telas: INTRO, MENU, SELECAO_MODO, PLAYING, PAUSED, GAME_OVER, NOME_VITORIA, VICTORY)
 6. Path dos inimigos definido como lista de coordenadas em `config/path.json` — nunca hardcoded
 7. Comentários e mensagens de erro em PT-BR
 8. Cada classe em seu próprio arquivo dentro do módulo correto
@@ -30,9 +30,13 @@ Speed Vs Labubu Remake/
 │   ├── settings.py          # Constantes globais (resolução, FPS, cores)
 │   └── path.json            # Coordenadas do path dos inimigos no mapa
 ├── core/
-│   ├── game.py              # Game loop principal
-│   ├── state_manager.py     # Máquina de estados
-│   └── asset_manager.py     # Carregamento e cache de assets
+│   ├── state_manager.py     # Máquina de estados de telas (GameScreen enum)
+│   ├── game_state.py        # @dataclass GameState — dados mutáveis da partida
+│   ├── asset_manager.py     # Carregamento e cache de assets (PNG)
+│   ├── audio.py             # Música e efeitos sonoros
+│   ├── leaderboard.py       # Leaderboard online via Supabase REST
+│   ├── conquistas.py        # Sistema de conquistas
+│   └── updater.py           # Auto-update do executável
 ├── entities/
 │   ├── tower.py             # Classe base Torre (Speed)
 │   ├── enemy.py             # Classe base Inimigo (Labubu)
@@ -45,15 +49,21 @@ Speed Vs Labubu Remake/
 ├── ui/
 │   ├── hud.py               # Vida, moedas, onda atual
 │   ├── card_hand.py         # Mão de cartas do jogador (bottom bar)
-│   └── menus.py             # Menu principal, pause, game over
+│   ├── menus.py             # 8 classes de tela (menu, pause, game over, etc.)
+│   ├── intro_scene.py       # Cutscene inicial (diálogos)
+│   ├── diff_selector.py     # Seleção de dificuldade
+│   ├── leaderboard_screen.py
+│   ├── conquistas_screen.py
+│   ├── changelog_screen.py
+│   ├── modo_screen.py
+│   ├── nome_vitoria_screen.py
+│   ├── tower_panel.py
+│   └── update_screen.py
 ├── assets/
 │   ├── mapa/
 │   │   └── mapa.png
 │   ├── speeds/
-│   │   ├── speed1.png
-│   │   ├── speed2.png
-│   │   ├── speed3.png
-│   │   └── speed4.png
+│   │   ├── speed1.png … speed8.png  # speed6=buff Speed5, speed8=efeito Speed7
 │   └── labubus/
 │       ├── labubu1.png
 │       ├── labubu2.png
