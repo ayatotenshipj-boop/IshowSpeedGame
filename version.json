@@ -1,10 +1,10 @@
 {
-  "version": "1.1.0",
+  "version": "1.3.0",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "v1.1.0 - Correções\n- Data do leaderboard agora usa fuso horário de Brasília\n- Corrigido múltiplos registros: cada jogador tem ID único\n- Leaderboard limitado a top 10 no banco\n- Speed7 não pode mais ser vendido\n- Trilha dos inimigos ajustada para área visível\n- Removido quadrado verde ao posicionar cartas",
+  "changelog": "v1.3.0 - Meta Diversificada e Correcoes\n\n[Economia]\n- Inimigos agora concedem +5% de ouro por wave progressiva, financiando upgrades no late-game.\n\n[Torres - Buffs]\n- Shake It Speed: Dano base aumentado (8 -> 9).\n- Suprised Speed: Dano (11 -> 14) e cadencia (1.05 -> 1.15) aumentados.\n- SayWallahi Speed: Alcance critico aumentado (90 -> 135) e cadencia (0.42 -> 0.55).\n- KindaHomeless Speed: Custo reduzido de 1500 para 175. Efeito de slow melhorado (50% -> 60%).\n\n[Torres - Nerfs]\n- ShockedSpeed: Custo aumentado (130 -> 160) e dano base reduzido (19 -> 15) para conter seu dominio.\n\n[Inimigos]\n- Labubu4 (Cansado): Agora perde 5% de velocidade em TODAS as curvas, comecando pela primeira.\n\n[Boss]\n- Ancelotti: Adicionado Cooldown Interno de 5s apos ser stunnado (fim do perma-stun).\n- Ancelotti: Invocacao de Labubu MUI limitada por timer (1 a cada 2.5s) em vez de chance por hit.\n\n[Correcoes]\n- Erro 400 Bad Request no Leaderboard (Supabase) corrigido.\n- Colunas do banco alinhadas com o codigo Python.\n",
   "download_url": {
-    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.1.0/SpeedVsLabubu-Linux",
-    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.1.0/SpeedVsLabubu-Windows.exe"
+    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.3.0/SpeedVsLabubu-Linux",
+    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.3.0/SpeedVsLabubu-Windows.exe"
   },
   "files": []
 }
