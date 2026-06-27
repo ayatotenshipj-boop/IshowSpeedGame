@@ -65,14 +65,22 @@ class DiffSelectorWidget:
                 cards_x + i * (_CARD_W + _GAP), cards_y, _CARD_W, _CARD_H
             )
 
+        # Botão "⚡ 2×": abaixo do card Difícil, visível apenas quando selecionado.
+        dificil_card = self._card_rects["dificil"]
+        self._btn_2x_rect = pygame.Rect(dificil_card.x, self._panel.bottom + 4, _CARD_W, 20)
+
         # Surface SRCALPHA reutilizada.
         self._overlay_surf = pygame.Surface(self._panel.size, pygame.SRCALPHA)
 
     # ── Input ────────────────────────────────────────────────────────────────
     def handle_click(self, pos: tuple[int, int]) -> str | None:
-        """Retorna o modo clicado ('facil'|'normal'|'dificil') ou None."""
+        """Retorna o modo clicado ('facil'|'normal'|'dificil'|'dificil_2x') ou None."""
         if not self.visible:
             return None
+        # Botão 2× aparece quando dificil já está selecionado.
+        if self.modo_selecionado == "dificil" and self._btn_2x_rect.collidepoint(pos):
+            self.visible = False
+            return "dificil_2x"
         for modo, rect in self._card_rects.items():
             if rect.collidepoint(pos):
                 self.modo_selecionado = modo
@@ -147,6 +155,16 @@ class DiffSelectorWidget:
             # Sublabel.
             sub = self._fonte_sub.render(info["sub"], True, COR_LABEL_HUD)
             surface.blit(sub, sub.get_rect(center=(rect.centerx, rect.centery + 14)))
+
+        # Botão "⚡ 2×" abaixo do card Difícil (visível quando dificil selecionado).
+        if self.modo_selecionado == "dificil":
+            btn = self._btn_2x_rect
+            hover_btn = btn.collidepoint(mx, my)
+            cor_btn = (70, 20, 8) if hover_btn else (50, 16, 8)
+            pygame.draw.rect(surface, cor_btn, btn)
+            pygame.draw.rect(surface, (190, 60, 30), btn, 1)
+            label_2x = self._fonte_sub.render("⚡ INICIAR EM 2×", True, (255, 200, 64))
+            surface.blit(label_2x, label_2x.get_rect(center=btn.center))
 
         # Barra de progresso do countdown (fundo da barra).
         bar_y = p.bottom - 7

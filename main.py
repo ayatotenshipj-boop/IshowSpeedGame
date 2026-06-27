@@ -45,7 +45,7 @@ from core.audio import AudioManager
 from core.game_state import GameState
 from core.state_manager import GameScreen, StateManager
 from core.updater import Updater
-from core import conquistas, leaderboard
+from core import conquistas, leaderboard, preferencias
 from entities.boss import Ancelotti
 from entities.tower import SPRITE_SIZE, TOWER_TYPES, Speed5, Speed7
 from entities.wave_manager import WAVES
@@ -232,6 +232,8 @@ def main() -> None:
     dev = modo_dev_ativo()
 
     pygame.init()
+    # 16 canais evitam contenção quando killthatboy, suspense e voicelines estão ativos juntos.
+    pygame.mixer.set_num_channels(16)
     tela = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption(WINDOW_TITLE)
     clock = pygame.time.Clock()
@@ -394,8 +396,13 @@ def main() -> None:
                     # JOGAR: inicia direto com Normal; seletor in-game aparece em campo.
                     current_screen.destroy()
                     reset_game("normal")
-                    current_screen = IntroScene(assets)
-                    state_manager.transition(GameScreen.INTRO)
+                    if preferencias.get("dialogo_habilitado"):
+                        current_screen = IntroScene(assets)
+                        state_manager.transition(GameScreen.INTRO)
+                    else:
+                        current_screen = None
+                        state_manager.transition(GameScreen.PLAYING)
+                        diff_selector = DiffSelectorWidget()
                 elif acao == "quit":
                     rodando = False
                 elif acao == "update":
@@ -424,8 +431,13 @@ def main() -> None:
                     # Modo escolhido: prepara a partida e exibe a intro.
                     current_screen.destroy()
                     reset_game(acao)
-                    current_screen = IntroScene(assets)
-                    state_manager.transition(GameScreen.INTRO)
+                    if preferencias.get("dialogo_habilitado"):
+                        current_screen = IntroScene(assets)
+                        state_manager.transition(GameScreen.INTRO)
+                    else:
+                        current_screen = None
+                        state_manager.transition(GameScreen.PLAYING)
+                        diff_selector = DiffSelectorWidget()
 
             elif state_manager.current == GameScreen.PLAYING:
                 if evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
@@ -448,7 +460,16 @@ def main() -> None:
                         # 0a) Seletor de dificuldade in-game tem prioridade máxima.
                         if diff_selector is not None and diff_selector.visible:
                             modo_clicado = diff_selector.handle_click(pos)
-                            if modo_clicado:
+                            if modo_clicado == "dificil_2x":
+                                state.modo_dificuldade = "dificil"
+                                state.lives = MODOS_DIFICULDADE["dificil"]["lives"]
+                                state.wave_manager.modo = "dificil"
+                                state.speed_multiplier = 2.0
+                                state.iniciou_em_2x = True
+                                state.waves_congeladas = False
+                                diff_selector = None
+                                continue
+                            elif modo_clicado:
                                 state.modo_dificuldade = modo_clicado
                                 state.lives = MODOS_DIFICULDADE[modo_clicado]["lives"]
                                 state.wave_manager.modo = modo_clicado
@@ -458,9 +479,13 @@ def main() -> None:
                         # 0b) Botões do HUD (velocidade 2× e pular onda) têm
                         # prioridade máxima — evitam posicionar torre por baixo.
                         if hud.speed_button_rect().collidepoint(pos):
-                            state.speed_multiplier = (
-                                1.0 if state.speed_multiplier >= 2.0 else 2.0
-                            )
+                            if state.speed_multiplier >= 2.0:
+                                state.speed_multiplier = 1.0
+                                state.iniciou_em_2x = False   # desligou 2×: conquista não conta
+                            else:
+                                state.speed_multiplier = 2.0
+                                if state.tempo_inicio == 0.0 and state.modo_dificuldade == "dificil":
+                                    state.iniciou_em_2x = True
                             continue
                         # Auto-Skip: toggle sempre disponível durante o jogo.
                         if hud.auto_button_rect().collidepoint(pos):
@@ -581,6 +606,12 @@ def main() -> None:
                     # Conquista por modo: desbloqueia e mostra banner se for nova.
                     conq_id = f"vitoria_{state.modo_dificuldade}"
                     nova = conquistas.desbloquear(conq_id)
+                    # Conquista extra: Difícil + 2× desde o início.
+                    if state.modo_dificuldade == "dificil" and state.iniciou_em_2x:
+                        nova_hard2x = conquistas.desbloquear("vitoria_hard_2x")
+                        if nova_hard2x:
+                            nova = True
+                            conq_id = "vitoria_hard_2x"
                     current_screen = VictoryScreen(
                         ui_manager, state.kills, state.coins, victory_image,
                         tempo=state.tempo_vitoria,
@@ -953,7 +984,7 @@ def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict], assets) 
         if proj.update(dt):
             if not proj.target.is_dead():
                 if isinstance(proj.target, Ancelotti):
-                    # Stun (15%) e possível invocação de Labubu MUI (20%),
+                    # Stun (30%) e invocação de Labubu4 por timer/hit,
                     # encapsulados no boss. Sem dano duplicado (receber_dano já
                     # aplica o dano).
                     if random.random() < proj.target.stun_chance:
@@ -971,7 +1002,10 @@ def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict], assets) 
 
     # 3. Inimigos: fim do path tira vida; mortos dão moedas + flash.
     for enemy in state.enemies[:]:
-        result = enemy.update(dt, waypoints)
+        if isinstance(enemy, Ancelotti):
+            result = enemy.update(dt, waypoints, len(state.enemies) - 1)
+        else:
+            result = enemy.update(dt, waypoints)
         # Ancelotti retorna (reached_end, spawn|None); inimigos normais, bool.
         if isinstance(result, tuple):
             reached_end, spawned = result

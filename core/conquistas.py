@@ -30,6 +30,11 @@ CONQUISTAS_DEF: dict[str, dict] = {
         "descricao": "Zerou o jogo no modo Difícil",
         "icone": "💀",
     },
+    "vitoria_hard_2x": {
+        "nome": "Sem Piedade",
+        "descricao": "Zerou no Difícil com velocidade 2x ativada",
+        "icone": "⚡",
+    },
 }
 
 

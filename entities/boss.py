@@ -1,24 +1,23 @@
 """Boss final: Ancelotti.
 
-Extensão mínima de `Enemy`. Diferenças: muito HP, sprite maior, imune ao
-efeito de slow do Speed4, e mecânicas próprias da v1.2.0:
-
-- STUN: qualquer projétil tem 15% de chance de stunná-lo por 1.5s. Stunnado,
-  ele para de se mover e não invoca reforços.
-- INVOCAÇÃO POR DANO: ao tomar dano (não mais por cooldown de tempo), tem 20%
-  de chance de invocar um `LabubuMUI` (reforço 50% mais fraco) — exceto durante
-  o stun.
-
-O `update` retorna uma tupla (chegou_ao_fim, inimigo_spawnado|None), mantendo o
-contrato do game loop. Com a invocação migrada para `receber_dano`, o segundo
-elemento é sempre None aqui (o game loop normaliza tupla vs. bool).
+Mecânicas:
+- STUN: projéteis têm 30% de chance de stunná-lo por 1.5s (ICD 5s).
+  Imune a stun nos primeiros 30s de combate.
+- INVOCAÇÃO POR TIMER: spawna Labubu4 com 50% HP a cada 2.5s ao tomar dano.
+  Em fase de fúria (HP < 30%): spawna a cada HIT.
+- FASE DE FÚRIA: ao atingir 30% HP, velocidade +40%.
+- REGENERAÇÃO PASSIVA: +15 HP/s quando é o único inimigo em campo.
+- IMUNE A SLOW: apply_slow() é no-op.
 """
 
+import logging
 import random
 
 import pygame
 
-from entities.enemy import Enemy, LabubuMUI, criar_mui
+from entities.enemy import Enemy, Labubu4
+
+logger = logging.getLogger(__name__)
 
 # Tamanho do sprite do boss (maior que os 48×48 dos inimigos comuns).
 BOSS_SPRITE_SIZE: int = 80
@@ -28,67 +27,98 @@ HP_BAR_HEIGHT: int = 8
 
 
 class Ancelotti(Enemy):
-    """Boss com HP alto, imune a slow, stunável e que invoca MUI ao tomar dano."""
+    """Boss com HP alto, imune a slow, stunável e que invoca reforços ao tomar dano."""
 
     name = "Ancelotti"
-    max_hp = 1500
-    speed = 55.0          # levemente mais rápido que Labubu3 (50)
-    reward = 300          # v1.2.1 (era 200)
-    asset_name = "labubus/ancelotti"  # qualificada: há outro ancelotti.png em dialogs/
+    max_hp = 3000
+    speed = 65.0           # mais rápido que Labubu3 (50 px/s)
+    reward = 300
+    asset_name = "labubus/ancelotti"
     slow_immune = True
-    damage_to_base = 5    # quase game over instantâneo se chegar ao fim
+    damage_to_base = 5
 
-    # Mecânicas v1.2.0.
-    stun_chance: float = 0.15      # chance de stun por projétil acertado
-    MUI_CHANCE: float = 0.20       # chance de invocar Labubu MUI ao tomar dano
+    stun_chance: float = 0.30
+    MUI_CHANCE: float = 0.15
 
     def __init__(self, assets, waypoints: list[dict]) -> None:
         super().__init__(assets, waypoints)
         self.stun_timer: float = 0.0
-        self.stun_icd: float = 0.0      # NOVO: Cooldown interno para não permar stunnar
-        self.mui_spawn_timer: float = 0.0 # NOVO: Timer para limitar invocação de MUI
-        # Sprite maior que o padrão.
+        self.stun_icd: float = 0.0
+        self.mui_spawn_timer: float = 0.0
+        self.stun_immune_timer: float = 30.0   # imune a stun nos primeiros 30s
+        self._fury: bool = False                # fase de fúria (HP < 30%)
+        self._speed_base: float = type(self).speed
         self.sprite = pygame.transform.smoothscale(
             assets.get(self.asset_name), (BOSS_SPRITE_SIZE, BOSS_SPRITE_SIZE)
         )
+        self.fonte_nome = pygame.font.SysFont(None, 22)
 
     # ------------------------------------------------------------------ #
-    # Movimento + stun
+    # Movimento + stun + regen
     # ------------------------------------------------------------------ #
-    def update(self, dt: float, waypoints: list[dict]) -> tuple[bool, Enemy | None]:
-        """Move; se stunnado, fica parado. Mantém o retorno em tupla."""
+    def update(
+        self, dt: float, waypoints: list[dict], enemies_count: int = 0
+    ) -> tuple[bool, "Enemy | None"]:
+        """Move; se stunnado, fica parado. Regenera HP quando sozinho no campo."""
+        if self.stun_immune_timer > 0.0:
+            self.stun_immune_timer -= dt
+
         if self.stun_timer > 0.0:
             self.stun_timer -= dt
-            return (False, None)  # parado durante o stun
-        
-        # Atualiza cooldowns internos
+            return (False, None)
+
         if self.stun_icd > 0.0:
             self.stun_icd -= dt
         if self.mui_spawn_timer > 0.0:
             self.mui_spawn_timer -= dt
 
+        # Regeneração passiva: +15 HP/s quando sozinho em campo.
+        if enemies_count == 0 and self.hp < self.max_hp:
+            self.hp = min(self.max_hp, self.hp + 15 * dt)
+
         reached_end = super().update(dt, waypoints)
         return (reached_end, None)
 
     def apply_stun(self, duration: float = 1.5) -> None:
-        """Aplica stun por `duration` segundos apenas se o ICD tiver zerado."""
-        if self.stun_icd <= 0.0:
+        """Stun apenas se ICD zerou E imunidade inicial expirou."""
+        if self.stun_icd <= 0.0 and self.stun_immune_timer <= 0.0:
             self.stun_timer = duration
-            self.stun_icd = 5.0  # 5 segundos de imunidade a novo stun
+            self.stun_icd = 5.0
 
+    # ------------------------------------------------------------------ #
+    # Dano + spawns
+    # ------------------------------------------------------------------ #
     def receber_dano(
         self, dano: int, wave_atual: int, assets, waypoints: list[dict]
-    ) -> "LabubuMUI | None":
-        """Aplica `dano` e, baseado em timer, invoca um Labubu MUI."""
+    ) -> "Labubu4 | None":
+        """Aplica dano, ativa fúria a 30% HP e invoca Labubu4 por timer/hit."""
         self.hp -= dano
-        # Invoca um MUI a cada 2.5s, se não estiver stunnado e o timer zerou
-        if self.stun_timer <= 0.0 and self.mui_spawn_timer <= 0.0:
-            mui = criar_mui(assets, waypoints, wave_atual)
-            mui.x, mui.y = self.x, self.y
-            mui.waypoint_index = self.waypoint_index
-            self.mui_spawn_timer = 2.5  # só invoca outro daqui 2.5 segundos
-            return mui
+
+        if not self._fury and self.hp <= self.max_hp * 0.3:
+            self._fury = True
+            self.speed = self._speed_base * 1.4
+            logger.debug("[Ancelotti] Fase de fúria ativada (HP=%d)", self.hp)
+
+        pode_invocar = self.stun_timer <= 0.0
+        if pode_invocar and (self._fury or self.mui_spawn_timer <= 0.0):
+            spawn = self._criar_spawn(assets, waypoints)
+            if not self._fury:
+                self.mui_spawn_timer = 2.5
+            return spawn
         return None
+
+    def _criar_spawn(self, assets, waypoints: list[dict]) -> "Labubu4":
+        """Cria Labubu4 com 50% HP, posição offsetada e levemente atrás no path."""
+        spawn = Labubu4(assets, waypoints)
+        spawn.max_hp = int(Labubu4.max_hp * 0.5)
+        spawn.hp = spawn.max_hp
+        spawn.reward = max(8, int(Labubu4.reward * 0.5))
+        offset_x = random.choice([-48, -32, 32, 48])
+        offset_y = random.choice([-32, 0, 32])
+        spawn.x = self.x + offset_x
+        spawn.y = self.y + offset_y
+        spawn.waypoint_index = max(1, self.waypoint_index - 1)
+        return spawn
 
     def apply_slow(self, duration: float = 2.0) -> None:
         """Imune a slow — ignora silenciosamente."""
@@ -100,7 +130,6 @@ class Ancelotti(Enemy):
     def draw(self, surface: pygame.Surface) -> None:
         """Sprite grande (piscando amarelo se stunnado), barra de HP e nome."""
         rect = self.sprite.get_rect(center=(int(self.x), int(self.y)))
-        # Durante o stun, o sprite pisca amarelo.
         if self.stun_timer > 0.0 and (pygame.time.get_ticks() // 120) % 2 == 0:
             flash = self.sprite.copy()
             flash.fill((255, 255, 80, 255), special_flags=pygame.BLEND_RGBA_MULT)
@@ -120,7 +149,5 @@ class Ancelotti(Enemy):
                 (60, 200, 70),
                 (bar_x, bar_y, int(HP_BAR_WIDTH * frac), HP_BAR_HEIGHT),
             )
-            # Nome acima da barra.
-            fonte = pygame.font.SysFont(None, 22)
-            txt = fonte.render("ANCELOTTI", True, (230, 50, 50))
+            txt = self.fonte_nome.render("ANCELOTTI", True, (230, 50, 50))
             surface.blit(txt, (int(self.x) - txt.get_width() // 2, bar_y - 20))

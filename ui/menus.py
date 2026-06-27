@@ -24,7 +24,11 @@ from config.settings import (
     COR_BANNER_FUNDO,
     COR_BANNER_DESC,
     COR_DOURADO_ESCURO,
+    COR_DOURADO,
     COR_LABEL_HUD,
+    COR_BORDA_MODAL,
+    COR_BORDA_MODAL_TOPO,
+    COR_HUD_BORDA,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
     FONTE_TITULO_PATH,
@@ -86,7 +90,38 @@ class _EmBreveScreen:
 class MultijogadorScreen(_EmBreveScreen):
     """Painel de multijogador online (placeholder)."""
 
-    titulo = "🌐 Multijogador Online — Em breve..."
+    titulo = "Multijogador Online"
+
+    def __init__(self, manager: pygame_gui.UIManager) -> None:
+        super().__init__(manager)
+        self._fonte_header = pygame.font.Font(str(FONTE_TITULO_PATH), 22)
+        self._fonte_corpo = pygame.font.SysFont("monospace", 18)
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Painel modal com conteúdo 'Em breve'."""
+        surface.blit(self._overlay, (0, 0))
+        p = self._painel
+        pygame.draw.rect(surface, COR_FUNDO_MODAL, p)
+        pygame.draw.rect(surface, COR_BORDA_MODAL, p, 1)
+        pygame.draw.line(surface, COR_BORDA_MODAL_TOPO, p.topleft, (p.right, p.top), 3)
+        header_y = p.y + 50
+        pygame.draw.line(surface, COR_HUD_BORDA, (p.x, header_y), (p.right, header_y), 1)
+        grad = pygame.Surface((p.width // 2, 50), pygame.SRCALPHA)
+        grad.fill((255, 208, 64, 10))
+        surface.blit(grad, p.topleft)
+        hdr = self._fonte_header.render("🌐 MULTIJOGADOR", True, COR_DOURADO)
+        surface.blit(hdr, (p.x + 20, p.y + 15))
+        linhas = [
+            ("EM BREVE", COR_DOURADO),
+            ("Modo online contra outros jogadores.", COR_LABEL_HUD),
+            ("Fique de olho nas próximas atualizações.", COR_LABEL_HUD),
+        ]
+        y = p.y + 70
+        for texto, cor in linhas:
+            f = self._fonte_header if cor == COR_DOURADO else self._fonte_corpo
+            txt = f.render(texto, True, cor)
+            surface.blit(txt, txt.get_rect(center=(CENTRO_X, y)))
+            y += 42
 
 
 class ConfiguracoesScreen:
@@ -105,8 +140,8 @@ class ConfiguracoesScreen:
     HANDLE_R: int = 8
 
     def __init__(self, manager: pygame_gui.UIManager, audio=None) -> None:
-        self._fonte_titulo = pygame.font.SysFont(None, 48)
-        self._fonte = pygame.font.SysFont(None, 34)
+        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 22)  # header modal
+        self._fonte = pygame.font.SysFont("monospace", 18)                  # body / slider %
         self._audio = audio
         self._painel = pygame.Rect(0, 0, 600, 400)
         self._painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
@@ -122,6 +157,14 @@ class ConfiguracoesScreen:
         )
         self._dragging: bool = False
 
+        # Toggle de diálogos: estado em memória (sem disco no draw).
+        from core import preferencias as _prefs
+        self._prefs = _prefs
+        self._dlg_on: bool = bool(_prefs.get("dialogo_habilitado"))
+        self._fonte_peq = pygame.font.SysFont("monospace", 14)
+        # Rect clicável do toggle pill (abaixo do slider).
+        self._toggle_rect = pygame.Rect(CENTRO_X - 24, self._painel.y + 280, 48, 26)
+
         self.botao_fechar = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(CENTRO_X - 90, self._painel.bottom - 80, 180, 50),
             text="Fechar",
@@ -136,16 +179,16 @@ class ConfiguracoesScreen:
         return self._audio.volume_musica if self._audio is not None else 1.0
 
     def _handle_pos(self) -> tuple[int, int]:
-        """Centro do handle conforme o volume atual."""
-        x = self._track.x + int(self._valor() * self._track.width)
+        """Centro do handle conforme o volume atual (0.7 = 100% do slider)."""
+        x = self._track.x + int(min(1.0, self._valor() / 0.7) * self._track.width)
         return x, self._track.centery
 
     def _aplicar_de_x(self, mouse_x: int) -> None:
-        """Converte uma posição X de mouse em volume e aplica via audio.set_volume."""
+        """Converte posição X do mouse em volume efetivo (máx 0.7) e aplica."""
         frac = (mouse_x - self._track.x) / self._track.width
         frac = max(0.0, min(1.0, frac))
         if self._audio is not None:
-            self._audio.set_volume(frac)
+            self._audio.set_volume(frac * 0.7)
 
     def handle_event(self, event: pygame.event.Event) -> str | None:
         """'close' ao fechar; arrasto do slider ajusta o volume (sem fechar)."""
@@ -162,6 +205,9 @@ class ConfiguracoesScreen:
             if sobre_handle or area_track.collidepoint(event.pos):
                 self._dragging = True
                 self._aplicar_de_x(event.pos[0])
+            elif self._toggle_rect.collidepoint(event.pos):
+                self._dlg_on = not self._dlg_on
+                self._prefs.set("dialogo_habilitado", self._dlg_on)
         elif event.type == pygame.MOUSEMOTION and self._dragging:
             self._aplicar_de_x(event.pos[0])
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -169,31 +215,53 @@ class ConfiguracoesScreen:
         return None
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Escurece a tela, desenha o painel, o título e o slider de volume."""
+        """Escurece a tela e desenha o painel modal com slider de volume e toggle de diálogos."""
         surface.blit(self._overlay, (0, 0))
-        pygame.draw.rect(surface, COR_FUNDO_MODAL, self._painel, border_radius=12)
-        pygame.draw.rect(surface, COLOR_GOLD, self._painel, 2, border_radius=12)
 
-        titulo = self._fonte_titulo.render(self.titulo, True, COR_TEXTO)
-        surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, self._painel.y + 70)))
+        # --- Modal painel ---
+        pygame.draw.rect(surface, COR_FUNDO_MODAL, self._painel)
+        pygame.draw.rect(surface, COR_BORDA_MODAL, self._painel, 1)
+        pygame.draw.line(surface, COR_BORDA_MODAL_TOPO,
+                         self._painel.topleft, (self._painel.right, self._painel.top), 3)
+        header_y = self._painel.y + 50
+        pygame.draw.line(surface, COR_HUD_BORDA,
+                         (self._painel.x, header_y), (self._painel.right, header_y), 1)
+        grad = pygame.Surface((self._painel.width // 2, 50), pygame.SRCALPHA)
+        grad.fill((255, 208, 64, 10))
+        surface.blit(grad, self._painel.topleft)
+        titulo = self._fonte_titulo.render("⚙ CONFIGURAÇÕES", True, COR_DOURADO)
+        surface.blit(titulo, (self._painel.x + 20, self._painel.y + 15))
 
-        rotulo = self._fonte.render("Volume da Música", True, COR_TEXTO)
-        surface.blit(rotulo, rotulo.get_rect(center=(CENTRO_X, self._painel.y + 145)))
-
-        # Trilha (cinza escuro) + preenchimento (dourado) até o handle.
+        # --- Seção: volume ---
+        rotulo = self._fonte.render("VOLUME DA MÚSICA", True, COR_LABEL_HUD)
+        surface.blit(rotulo, (self._painel.x + 20, self._painel.y + 62))
         pygame.draw.rect(surface, COR_SLIDER_TRACK, self._track, border_radius=3)
         hx, hy = self._handle_pos()
         preenchido = pygame.Rect(
             self._track.x, self._track.y, hx - self._track.x, self._track.height
         )
         pygame.draw.rect(surface, COLOR_GOLD, preenchido, border_radius=3)
-        # Handle (círculo dourado).
         pygame.draw.circle(surface, COLOR_GOLD, (hx, hy), self.HANDLE_R)
         pygame.draw.circle(surface, COR_SLIDER_HANDLE, (hx, hy), self.HANDLE_R, 2)
-
-        # Porcentagem à direita do slider.
-        pct = self._fonte.render(f"{int(round(self._valor() * 100))}%", True, COLOR_GOLD)
+        pct_val = int(round(min(1.0, self._valor() / 0.7) * 100))
+        pct = self._fonte.render(f"{pct_val}%", True, COLOR_GOLD)
         surface.blit(pct, pct.get_rect(midleft=(self._track.right + 18, self._track.centery)))
+
+        # --- Seção: diálogos de introdução ---
+        lbl_dlg_y = self._painel.y + 248
+        lbl_dlg = self._fonte_peq.render("DIÁLOGOS DE INTRODUÇÃO", True, COR_LABEL_HUD)
+        surface.blit(lbl_dlg, (self._painel.x + 20, lbl_dlg_y))
+        tgl = self._toggle_rect
+        cor_pill = COLOR_GOLD if self._dlg_on else (40, 40, 40)
+        pygame.draw.rect(surface, cor_pill, tgl, border_radius=13)
+        pygame.draw.rect(surface, COLOR_GOLD if self._dlg_on else (80, 80, 80), tgl, 1, border_radius=13)
+        handle_x = tgl.right - 15 if self._dlg_on else tgl.x + 15
+        pygame.draw.circle(surface, (240, 240, 232), (handle_x, tgl.centery), 10)
+        status_cor = COLOR_GOLD if self._dlg_on else (80, 80, 80)
+        status_surf = self._fonte_peq.render("ON" if self._dlg_on else "OFF", True, status_cor)
+        surface.blit(status_surf, (tgl.right + 12, tgl.centery - status_surf.get_height() // 2))
+        nota = self._fonte_peq.render("Exibir antes de cada partida", True, COR_LABEL_HUD)
+        surface.blit(nota, (self._painel.x + 20, lbl_dlg_y + 44))
 
     def destroy(self) -> None:
         """Remove o botão Fechar do UIManager."""

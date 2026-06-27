@@ -53,9 +53,9 @@ class AudioManager:
         # Estado do fade-in da música de fundo (mixer.music).
         self._fade_in: bool = False
         self._volume: float = 0.0
-        # Volume-alvo definido pelo jogador (teto do fade-in). 1.0 = máximo.
+        # Volume-alvo definido pelo jogador (teto do fade-in). 0.7 = padrão (70%).
         # O botão "Diminuir Música" nas Configurações reduz este valor.
-        self._music_volume: float = 1.0
+        self._music_volume: float = 0.7
 
         # Cue killthatboy: Sound em canal próprio (sobreposto à música).
         self._sfx_killthatboy: pygame.mixer.Sound | None = self._carregar_sound(

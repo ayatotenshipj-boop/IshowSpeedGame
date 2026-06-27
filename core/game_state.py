@@ -50,3 +50,6 @@ class GameState:
     aoe_flashes: list = field(default_factory=list)
     # Waves congeladas enquanto o seletor de dificuldade estiver visível.
     waves_congeladas: bool = False
+    # Preferências por partida.
+    dialogo_habilitado: bool = True
+    iniciou_em_2x: bool = False  # True se 2x ativado antes da onda 1 no modo difícil

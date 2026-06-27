@@ -13,6 +13,13 @@ from config.settings import (
     COR_TEXTO,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
+    COR_FUNDO_MODAL,
+    COR_BORDA_MODAL,
+    COR_BORDA_MODAL_TOPO,
+    COR_HUD_BORDA,
+    COR_DOURADO,
+    COR_LABEL_HUD,
+    FONTE_TITULO_PATH,
 )
 
 CENTRO_X: int = WINDOW_WIDTH // 2
@@ -108,9 +115,9 @@ class UpdateResultScreen:
         self._tipo = result_type
         self._version = version
         self._changelog = changelog
-        self._fonte_titulo = pygame.font.SysFont(None, 52, bold=True)
-        self._fonte = pygame.font.SysFont(None, 32)
-        self._fonte_peq = pygame.font.SysFont(None, 26)
+        self._fonte_header = pygame.font.Font(str(FONTE_TITULO_PATH), 22)
+        self._fonte = pygame.font.SysFont("monospace", 20)
+        self._fonte_peq = pygame.font.SysFont("monospace", 15)
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         """Retorna True quando o jogador fecha (clique ou qualquer tecla)."""
@@ -121,30 +128,44 @@ class UpdateResultScreen:
         return False
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Mensagem central conforme o tipo + changelog (se houver)."""
-        surface.fill(COLOR_HUD_BG)
-        msg, cor = self._MENSAGENS.get(self._tipo, self._MENSAGENS["current"])
+        """Painel modal com resultado da atualização e changelog."""
+        surface.fill((10, 10, 6))
+        painel = pygame.Rect(0, 0, 560, 400)
+        painel.center = (CENTRO_X, CENTRO_Y)
 
-        titulo = self._fonte_titulo.render(msg, True, cor)
-        surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, CENTRO_Y - 140)))
+        pygame.draw.rect(surface, COR_FUNDO_MODAL, painel)
+        pygame.draw.rect(surface, COR_BORDA_MODAL, painel, 1)
+        pygame.draw.line(surface, COR_BORDA_MODAL_TOPO,
+                         painel.topleft, (painel.right, painel.top), 3)
+        header_y = painel.y + 50
+        pygame.draw.line(surface, COR_HUD_BORDA,
+                         (painel.x, header_y), (painel.right, header_y), 1)
+        grad = pygame.Surface((painel.width // 2, 50), pygame.SRCALPHA)
+        grad.fill((255, 208, 64, 10))
+        surface.blit(grad, painel.topleft)
+        hdr = self._fonte_header.render("ATUALIZAÇÃO", True, COR_DOURADO)
+        surface.blit(hdr, (painel.x + 20, painel.y + 15))
+
+        msg, cor = self._MENSAGENS.get(self._tipo, self._MENSAGENS["current"])
+        msg_surf = self._fonte.render(msg, True, cor)
+        surface.blit(msg_surf, msg_surf.get_rect(center=(CENTRO_X, painel.y + 80)))
 
         if self._version:
-            v = self._fonte.render(f"Versão: {self._version}", True, COR_TEXTO)
-            surface.blit(v, v.get_rect(center=(CENTRO_X, CENTRO_Y - 90)))
+            v = self._fonte_peq.render(f"versão {self._version}", True, COR_LABEL_HUD)
+            surface.blit(v, v.get_rect(center=(CENTRO_X, painel.y + 114)))
 
-        # Changelog (uma linha por item, quebrado por \n).
         if self._changelog:
-            linhas = self._changelog.split("\n")
-            y = CENTRO_Y - 40
+            linhas = self._changelog.split("\n")[:7]
+            y = painel.y + 148
             for linha in linhas:
-                txt = self._fonte_peq.render(linha, True, COR_TEXTO)
-                surface.blit(txt, txt.get_rect(center=(CENTRO_X, y)))
-                y += 32
+                txt = self._fonte_peq.render(f"— {linha}", True, COR_TEXTO)
+                surface.blit(txt, (painel.x + 24, y))
+                y += 26
 
         rodape = self._fonte_peq.render(
-            "Clique ou pressione qualquer tecla para continuar", True, COLOR_GOLD
+            "clique ou pressione qualquer tecla", True, COR_LABEL_HUD
         )
-        surface.blit(rodape, rodape.get_rect(center=(CENTRO_X, WINDOW_HEIGHT - 60)))
+        surface.blit(rodape, rodape.get_rect(center=(CENTRO_X, painel.bottom - 30)))
 
     def destroy(self) -> None:
         """Sem elementos pygame_gui para remover (no-op por simetria de API)."""

@@ -140,10 +140,9 @@ class Tower:
         return self.level < MAX_LEVEL
 
     def upgrade_cost(self) -> int:
-        """Custo do próximo upgrade (60% do base, crescendo 1.5× por nível)."""
-        return round(
-            type(self).cost * UPGRADE_CUSTO_BASE * (UPGRADE_CUSTO_ESCALA ** (self.level - 1))
-        )
+        """Custo do upgrade. Último nível (→MAX_LEVEL) custa 2× o upgrade anterior."""
+        base = int(type(self).cost * 0.75)
+        return base * 2 if self.level == MAX_LEVEL - 1 else base
 
     def _stats_no_nivel(self, nivel: int) -> tuple[int, int, float]:
         """Status (dano, alcance, cadência) num dado nível, a partir do base."""

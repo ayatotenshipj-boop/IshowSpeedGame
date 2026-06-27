@@ -13,6 +13,9 @@ from config.settings import (
     COLOR_GOLD, COR_TEXTO, WINDOW_HEIGHT, WINDOW_WIDTH,
     COR_FUNDO_MODAL, COR_OVERLAY_MODAL, COR_FUNDO_TELA,
     COR_BRONZE, COR_MEDALHA_LENDA, COR_BLOQUEADA,
+    COR_BORDA_MODAL, COR_BORDA_MODAL_TOPO, COR_HUD_BORDA,
+    COR_DOURADO, COR_DOURADO_ESCURO, COR_LABEL_HUD,
+    FONTE_TITULO_PATH,
 )
 from core import conquistas
 
@@ -23,6 +26,7 @@ _COR_MEDALHA: dict[str, tuple[int, int, int]] = {
     "vitoria_facil": COR_BRONZE,
     "vitoria_normal": COLOR_GOLD,
     "vitoria_dificil": COR_MEDALHA_LENDA,
+    "vitoria_hard_2x": (255, 220, 0),  # dourado brilhante para ⚡ Sem Piedade
 }
 
 
@@ -30,10 +34,9 @@ class ConquistasScreen:
     """Painel central com as conquistas e seu estado de desbloqueio."""
 
     def __init__(self, manager: pygame_gui.UIManager) -> None:
-        from config.settings import FONTE_TITULO_PATH
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 48)
-        self._fonte_nome = pygame.font.SysFont("liberationsans", 28, bold=True)
-        self._fonte_desc = pygame.font.SysFont("monospace", 20)
+        self._fonte_header = pygame.font.Font(str(FONTE_TITULO_PATH), 22)  # modal header
+        self._fonte_nome = pygame.font.Font(str(FONTE_TITULO_PATH), 20)   # conquista nome
+        self._fonte_desc = pygame.font.SysFont("monospace", 15)  # conquista desc
 
         self._painel = pygame.Rect(0, 0, 640, 460)
         self._painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
@@ -57,45 +60,62 @@ class ConquistasScreen:
         return None
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Escurece a tela e desenha o painel com as 3 conquistas."""
+        """Escurece a tela e desenha o painel modal com cards de conquistas."""
         surface.blit(self._overlay, (0, 0))
-        pygame.draw.rect(surface, COR_FUNDO_MODAL, self._painel)
-        pygame.draw.rect(surface, COLOR_GOLD, self._painel, 1)
-        # Borda-topo 3px dourada (modal-painel do HTML)
-        pygame.draw.line(surface, COLOR_GOLD,
-                         self._painel.topleft, self._painel.topright, 3)
+        p = self._painel
+        pygame.draw.rect(surface, COR_FUNDO_MODAL, p)
+        pygame.draw.rect(surface, COR_BORDA_MODAL, p, 1)
+        pygame.draw.line(surface, COR_BORDA_MODAL_TOPO, p.topleft, (p.right, p.top), 3)
+        header_y = p.y + 50
+        pygame.draw.line(surface, COR_HUD_BORDA, (p.x, header_y), (p.right, header_y), 1)
+        grad = pygame.Surface((p.width // 2, 50), pygame.SRCALPHA)
+        grad.fill((255, 208, 64, 10))
+        surface.blit(grad, p.topleft)
+        hdr = self._fonte_header.render("CONQUISTAS", True, COR_DOURADO)
+        surface.blit(hdr, (p.x + 20, p.y + 15))
 
-        titulo = self._fonte_titulo.render("CONQUISTAS", True, COLOR_GOLD)
-        surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, self._painel.y + 46)))
-
-        # Uma linha por conquista.
-        y = self._painel.y + 110
-        linha_h = 100
+        # Cards de conquistas.
+        y = p.y + 60
+        card_h = 74
+        card_gap = 6
         for c in self._conquistas:
-            self._desenhar_linha(surface, c, y)
-            y += linha_h
+            self._desenhar_card(surface, c, y)
+            y += card_h + card_gap
 
-    def _desenhar_linha(self, surface: pygame.Surface, c: dict, y: int) -> None:
-        """Desenha uma conquista: medalha + nome/descrição (ou '???' se bloqueada)."""
-        x = self._painel.x + 40
+    def _desenhar_card(self, surface: pygame.Surface, c: dict, y: int) -> None:
+        """Conquista-card: medalha + nome + descrição."""
         desbloqueada = c["desbloqueada"]
+        cx = self._painel.x + 16
+        card_w = self._painel.width - 32
+        card_rect = pygame.Rect(cx, y, card_w, 74)
+
+        bg_cor = (14, 13, 4) if desbloqueada else (10, 10, 6)
+        pygame.draw.rect(surface, bg_cor, card_rect)
+        borda_cor = COR_DOURADO_ESCURO if desbloqueada else COR_HUD_BORDA
+        pygame.draw.rect(surface, borda_cor, card_rect, 1)
+
+        if not desbloqueada:
+            dim = pygame.Surface(card_rect.size, pygame.SRCALPHA)
+            dim.fill((0, 0, 0, 80))
+            surface.blit(dim, card_rect.topleft)
+
+        # Medalha.
+        med_cx = cx + 30
+        med_cy = y + card_rect.height // 2
         cor_medalha = _COR_MEDALHA.get(c["id"], COLOR_GOLD) if desbloqueada else COR_BLOQUEADA
+        pygame.draw.circle(surface, cor_medalha, (med_cx, med_cy), 20)
+        pygame.draw.circle(surface, (0, 0, 0), (med_cx, med_cy), 20, 2)
 
-        # Medalha: disco colorido (ouro/bronze/roxo) se desbloqueada, cinza senão.
-        centro_medalha = (x + 22, y + 22)
-        pygame.draw.circle(surface, cor_medalha, centro_medalha, 22)
-        pygame.draw.circle(surface, COR_FUNDO_TELA, centro_medalha, 22, 2)
-
-        tx = x + 64
+        # Textos.
+        tx = cx + 62
         if desbloqueada:
             nome = self._fonte_nome.render(c["nome"], True, COLOR_GOLD)
-            surface.blit(nome, (tx, y + 4))
-            desc = self._fonte_desc.render(c["descricao"], True, COR_TEXTO)
-            surface.blit(desc, (tx, y + 38))
+            surface.blit(nome, (tx, y + 12))
+            desc = self._fonte_desc.render(c["descricao"], True, COR_LABEL_HUD)
+            surface.blit(desc, (tx, y + 44))
         else:
-            # Bloqueada: não revela nome nem descrição.
             nome = self._fonte_nome.render("???", True, COR_BLOQUEADA)
-            surface.blit(nome, (tx, y + 14))
+            surface.blit(nome, (tx, y + 24))
 
     def destroy(self) -> None:
         """Remove o botão Fechar do UIManager."""
