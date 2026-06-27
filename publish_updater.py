@@ -10,8 +10,8 @@ from pathlib import Path
 # ==============================================================================
 GITHUB_USER = "ayatotenshipj-boop"
 GITHUB_REPO = "IshowSpeedGame"
-VERSION = "1.3.0"
-CHANGELOG = """v1.3.0 - Meta Diversificada e Correcoes
+VERSION = "1.3.1" # Alterado para 1.3.1 para não conflitar com a tag anterior
+CHANGELOG = """v1.3.1 - Meta Diversificada e Correcoes
 
 [Economia]
 - Inimigos agora concedem +5% de ouro por wave progressiva, financiando upgrades no late-game.
@@ -37,8 +37,7 @@ CHANGELOG = """v1.3.0 - Meta Diversificada e Correcoes
 - Colunas do banco alinhadas com o codigo Python.
 """
 
-# Arquivos gerados pelo PyInstaller (ajuste se os nomes forem diferentes)
-# No Linux você só consegue compilar a versão Linux. No Windows, a versão Windows.
+# Arquivos gerados pelo PyInstaller
 LINUX_BIN = "dist/SpeedVsLabubu-Linux"
 WINDOWS_BIN = "dist/SpeedVsLabubu-Windows.exe"
 
@@ -79,26 +78,27 @@ def main():
 
     # 2. Compilar com PyInstaller
     print("\n[2/5] Compilando com PyInstaller...")
-    # Substitua 'main.py' pelo nome do seu arquivo principal se for diferente
     run_cmd("pyinstaller --noconfirm --onefile --noconsole main.py")
     
     # Renomear o executável gerado
     if sys.platform == "win32":
-        os.replace("dist/main.exe", WINDOWS_BIN)
+        if Path("dist/main.exe").exists():
+            os.replace("dist/main.exe", WINDOWS_BIN)
         asset_to_upload = WINDOWS_BIN
     else:
-        os.replace("dist/main", LINUX_BIN)
-        os.chmod(LINUX_BIN, 0o755) # Garante permissão de execução
+        if Path("dist/main").exists():
+            os.replace("dist/main", LINUX_BIN)
+        os.chmod(LINUX_BIN, 0o755)
         asset_to_upload = LINUX_BIN
 
     if not Path(asset_to_upload).exists():
         print(f"❌ Erro: Executável {asset_to_upload} não encontrado após compilação.")
         sys.exit(1)
 
-    # 3. Git Commit e Push
+    # 3. Git Commit e Push (Envia todos os arquivos .py e assets)
     print("\n[3/5] Enviando código para o GitHub (Git Push)...")
-    run_cmd("git add version.json")
-    run_cmd(f'git commit -m "Release v{VERSION}"')
+    run_cmd("git add .")
+    run_cmd(f'git commit -m "Release v{VERSION}: Balanceamento e correcoes"')
     run_cmd("git push origin main")
 
     # 4. Criar Tag
@@ -109,7 +109,6 @@ def main():
     # 5. Criar Release no GitHub e fazer Upload do Executável
     print(f"\n[5/5] Criando Release no GitHub e subindo {asset_to_upload}...")
     
-    # Criar Release
     release_url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/releases"
     release_payload = {
         "tag_name": f"v{VERSION}",
@@ -126,7 +125,6 @@ def main():
         
     release_data = resp.json()
     upload_url = release_data["upload_url"].replace("{?name,label}", "")
-    release_id = release_data["id"]
     print(f"✅ Release v{VERSION} criada com sucesso!")
 
     # Upload do Asset (Executável)
@@ -148,7 +146,6 @@ def main():
         print(f"❌ Erro no upload do asset: {resp_upload.json()}")
 
     print("\n🚀 ATUALIZAÇÃO PUBLICADA COM SUCESSO! 🚀")
-    print("Os jogadores agora receberão a atualização automaticamente ao abrir o jogo.")
 
 if __name__ == "__main__":
     main()
