@@ -1,14 +1,24 @@
 """Boss final: Ancelotti.
 
 Extensão mínima de `Enemy`. Diferenças: muito HP, sprite maior, imune ao
-efeito de slow do Speed4 e capaz de spawnar reforços (Labubu1) durante o
-trajeto. O `update` retorna uma tupla (chegou_ao_fim, inimigo_spawnado|None),
-diferente do `bool` dos inimigos normais — o game loop normaliza isso.
+efeito de slow do Speed4, e mecânicas próprias da v1.2.0:
+
+- STUN: qualquer projétil tem 15% de chance de stunná-lo por 1.5s. Stunnado,
+  ele para de se mover e não invoca reforços.
+- INVOCAÇÃO POR DANO: ao tomar dano (não mais por cooldown de tempo), tem 20%
+  de chance de invocar um `LabubuMUI` (reforço 50% mais fraco) — exceto durante
+  o stun.
+
+O `update` retorna uma tupla (chegou_ao_fim, inimigo_spawnado|None), mantendo o
+contrato do game loop. Com a invocação migrada para `receber_dano`, o segundo
+elemento é sempre None aqui (o game loop normaliza tupla vs. bool).
 """
+
+import random
 
 import pygame
 
-from entities.enemy import Enemy, Labubu1
+from entities.enemy import Enemy, LabubuMUI, criar_mui
 
 # Tamanho do sprite do boss (maior que os 48×48 dos inimigos comuns).
 BOSS_SPRITE_SIZE: int = 80
@@ -18,61 +28,67 @@ HP_BAR_HEIGHT: int = 8
 
 
 class Ancelotti(Enemy):
-    """Boss com HP alto, imune a slow e que invoca reforços."""
+    """Boss com HP alto, imune a slow, stunável e que invoca MUI ao tomar dano."""
 
     name = "Ancelotti"
     max_hp = 1500
     speed = 55.0          # levemente mais rápido que Labubu3 (50)
-    reward = 200
+    reward = 300          # v1.2.1 (era 200)
     asset_name = "labubus/ancelotti"  # qualificada: há outro ancelotti.png em dialogs/
     slow_immune = True
+    damage_to_base = 5    # quase game over instantâneo se chegar ao fim
 
-    # Comportamento de invocação.
-    spawn_cooldown: float = 8.0
-    spawns_remaining: int = 4
+    # Mecânicas v1.2.0.
+    stun_chance: float = 0.15      # chance de stun por projétil acertado
+    MUI_CHANCE: float = 0.20       # chance de invocar Labubu MUI ao tomar dano
 
     def __init__(self, assets, waypoints: list[dict]) -> None:
         super().__init__(assets, waypoints)
-        self._assets = assets
-        self.spawn_timer: float = 0.0
+        self.stun_timer: float = 0.0
+        self.stun_icd: float = 0.0      # NOVO: Cooldown interno para não permar stunnar
+        self.mui_spawn_timer: float = 0.0 # NOVO: Timer para limitar invocação de MUI
         # Sprite maior que o padrão.
         self.sprite = pygame.transform.smoothscale(
             assets.get(self.asset_name), (BOSS_SPRITE_SIZE, BOSS_SPRITE_SIZE)
         )
 
     # ------------------------------------------------------------------ #
-    # Movimento + invocação
+    # Movimento + stun
     # ------------------------------------------------------------------ #
     def update(self, dt: float, waypoints: list[dict]) -> tuple[bool, Enemy | None]:
-        """Move e resolve a habilidade do boss (delega para `use_ability`).
+        """Move; se stunnado, fica parado. Mantém o retorno em tupla."""
+        if self.stun_timer > 0.0:
+            self.stun_timer -= dt
+            return (False, None)  # parado durante o stun
+        
+        # Atualiza cooldowns internos
+        if self.stun_icd > 0.0:
+            self.stun_icd -= dt
+        if self.mui_spawn_timer > 0.0:
+            self.mui_spawn_timer -= dt
 
-        O game loop chama `update` em todos os inimigos; no boss ele encaminha
-        para `use_ability`, mantendo o mesmo retorno em tupla.
-        """
-        return self.use_ability(dt, waypoints)
-
-    def use_ability(self, dt: float, waypoints: list[dict]) -> tuple[bool, Enemy | None]:
-        """Move e, periodicamente, invoca um Labubu1 na posição atual.
-
-        Retorna (chegou_ao_fim, inimigo_spawnado_ou_None).
-        """
         reached_end = super().update(dt, waypoints)
+        return (reached_end, None)
 
-        spawned: Enemy | None = None
-        if self.spawn_timer > 0.0:
-            self.spawn_timer -= dt
+    def apply_stun(self, duration: float = 1.5) -> None:
+        """Aplica stun por `duration` segundos apenas se o ICD tiver zerado."""
+        if self.stun_icd <= 0.0:
+            self.stun_timer = duration
+            self.stun_icd = 5.0  # 5 segundos de imunidade a novo stun
 
-        if self.spawn_timer <= 0.0 and self.spawns_remaining > 0:
-            self.spawn_timer = self.spawn_cooldown
-            self.spawns_remaining -= 1
-            # Reforço começa na posição atual do boss e segue de onde ele está.
-            reforco = Labubu1(self._assets, waypoints)
-            reforco.x = self.x
-            reforco.y = self.y
-            reforco.waypoint_index = self.waypoint_index
-            spawned = reforco
-
-        return reached_end, spawned
+    def receber_dano(
+        self, dano: int, wave_atual: int, assets, waypoints: list[dict]
+    ) -> "LabubuMUI | None":
+        """Aplica `dano` e, baseado em timer, invoca um Labubu MUI."""
+        self.hp -= dano
+        # Invoca um MUI a cada 2.5s, se não estiver stunnado e o timer zerou
+        if self.stun_timer <= 0.0 and self.mui_spawn_timer <= 0.0:
+            mui = criar_mui(assets, waypoints, wave_atual)
+            mui.x, mui.y = self.x, self.y
+            mui.waypoint_index = self.waypoint_index
+            self.mui_spawn_timer = 2.5  # só invoca outro daqui 2.5 segundos
+            return mui
+        return None
 
     def apply_slow(self, duration: float = 2.0) -> None:
         """Imune a slow — ignora silenciosamente."""
@@ -82,9 +98,15 @@ class Ancelotti(Enemy):
     # Render
     # ------------------------------------------------------------------ #
     def draw(self, surface: pygame.Surface) -> None:
-        """Sprite grande, barra de HP larga e nome em vermelho."""
+        """Sprite grande (piscando amarelo se stunnado), barra de HP e nome."""
         rect = self.sprite.get_rect(center=(int(self.x), int(self.y)))
-        surface.blit(self.sprite, rect)
+        # Durante o stun, o sprite pisca amarelo.
+        if self.stun_timer > 0.0 and (pygame.time.get_ticks() // 120) % 2 == 0:
+            flash = self.sprite.copy()
+            flash.fill((255, 255, 80, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            surface.blit(flash, rect)
+        else:
+            surface.blit(self.sprite, rect)
 
         if self.hp < self.max_hp:
             bar_x = int(self.x) - HP_BAR_WIDTH // 2

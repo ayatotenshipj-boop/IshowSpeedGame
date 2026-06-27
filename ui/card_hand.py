@@ -16,13 +16,19 @@ from config.settings import (
     COLOR_CARD_LIMIT,
     COLOR_CARD_STATS,
     COLOR_GOLD,
-    COLOR_HUD_BG,
     COLOR_SELECTED,
     COLOR_SLOT_OFF,
     COLOR_SLOT_ON,
     COR_TEXTO,
+    COR_FUNDO_HUD,
+    COR_CARTA_TOPO,
+    COR_BORDA_CARTA,
+    COR_OVERLAY_BLOQUEADA,
+    COR_TOOLTIP_FUNDO,
+    COR_BUFF_IND,
+    COR_SKILL_USADA,
+    COR_ROXO_IND,
     HUD_RECT,
-    MAX_PER_TYPE,
     WINDOW_WIDTH,
 )
 from entities.tower import TOWER_TYPES
@@ -48,15 +54,19 @@ class CardHand:
         self._hover_idx: int | None = None
         self._hover_timer: float = 0.0
 
-        # Fontes (None = fonte padrão; monospace para stats/descrição retro).
-        self._fonte_nome = pygame.font.SysFont(None, 22, bold=True)
-        self._fonte_stats = pygame.font.SysFont("monospace", 12)
-        self._fonte_desc = pygame.font.SysFont("monospace", 10, italic=True)
-        self._fonte_custo = pygame.font.SysFont(None, 22)
-        self._fonte_ind = pygame.font.SysFont(None, 18, bold=True)
-        self._fonte_moedas = pygame.font.SysFont(None, 28)
-        self._fonte_tip = pygame.font.SysFont(None, 20)
+        # Fontes: BebasNeue (TTF) para custo/moedas, Liberation Sans Bold para nomes.
+        from config.settings import FONTE_TITULO_PATH
+        self._fonte_stats = pygame.font.SysFont("monospace", 11)
+        self._fonte_custo = pygame.font.Font(str(FONTE_TITULO_PATH), 18)
+        self._fonte_ind = pygame.font.SysFont("monospace", 13, bold=True)
+        self._fonte_moedas = pygame.font.Font(str(FONTE_TITULO_PATH), 28)
+        self._fonte_tip = pygame.font.SysFont("liberationsans", 18, bold=True)
         self._fonte_tip_peq = pygame.font.SysFont("monospace", 13)
+
+        # Surfaces cacheadas — evitar alocação por frame
+        # (tamanho calculado após _rects, mais abaixo)
+        self._carta_surf: pygame.Surface | None = None
+        self._overlay_bloqueada_surf: pygame.Surface | None = None
 
         # Pré-renderiza o sprite de cada carta uma única vez.
         self._sprites: list[pygame.Surface] = [
@@ -77,6 +87,63 @@ class CardHand:
             pygame.Rect(x0 + i * (card_w + CARD_GAP), y0, card_w, CARD_HEIGHT)
             for i in range(n)
         ]
+
+        # Inicializa surfaces cacheadas agora que _rects está definido
+        if self._rects:
+            card_size = self._rects[0].size
+            self._carta_surf = pygame.Surface(card_size, pygame.SRCALPHA)
+            self._overlay_bloqueada_surf = pygame.Surface(card_size, pygame.SRCALPHA)
+            self._overlay_bloqueada_surf.fill(COR_OVERLAY_BLOQUEADA)
+
+        # Pré-renderiza nome e descrição já AJUSTADOS para caber na carta
+        # (nomes longos como "KindaHomeless Speed" transbordavam). Estático por
+        # tipo: calculado uma vez, sem custo por frame.
+        larg_nome = card_w - 56 - 6      # nome começa em x=56
+        larg_desc = card_w - 16          # descrição começa em x=8
+        self._nome_surfs: list[pygame.Surface] = [
+            self._render_texto_ajustado(t.nome, larg_nome, COR_TEXTO, 22, 11, bold=True)
+            for t in TOWER_TYPES
+        ]
+        self._desc_surfs: list[pygame.Surface | None] = [
+            self._render_texto_ajustado(
+                t.description, larg_desc, COLOR_CARD_DESC, 10, 8, mono=True, italic=True
+            ) if t.description else None
+            for t in TOWER_TYPES
+        ]
+
+    # ------------------------------------------------------------------ #
+    # Texto ajustável (Bloco 4)
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _render_texto_ajustado(
+        texto: str,
+        larg_max: int,
+        cor: tuple[int, int, int],
+        font_max: int,
+        font_min: int,
+        bold: bool = False,
+        italic: bool = False,
+        mono: bool = False,
+    ) -> pygame.Surface:
+        """Renderiza `texto` reduzindo a fonte de `font_max` a `font_min` até
+        caber em `larg_max` px. Se nem no mínimo couber, trunca com reticências.
+        """
+        if mono:
+            fam = "monospace"
+        elif bold:
+            fam = "liberationsans"  # Oswald bold → Liberation Sans Bold (disponível no Linux)
+        else:
+            fam = None
+        for tam in range(font_max, font_min - 1, -1):
+            fonte = pygame.font.SysFont(fam, tam, bold=bold, italic=italic)
+            if fonte.size(texto)[0] <= larg_max:
+                return fonte.render(texto, True, cor)
+        # Não coube nem no menor tamanho: trunca caractere a caractere com "…".
+        fonte = pygame.font.SysFont(fam, font_min, bold=bold, italic=italic)
+        trunc = texto
+        while trunc and fonte.size(trunc + "…")[0] > larg_max:
+            trunc = trunc[:-1]
+        return fonte.render((trunc + "…") if trunc else "…", True, cor)
 
     # ------------------------------------------------------------------ #
     # Seleção
@@ -116,7 +183,7 @@ class CardHand:
     # ------------------------------------------------------------------ #
     def draw(self, surface: pygame.Surface, coins: int, towers=()) -> None:
         """Desenha a barra, o saldo e as cartas (com slots por tipo já posto)."""
-        surface.fill(COLOR_HUD_BG, HUD_RECT)
+        surface.fill(COR_FUNDO_HUD, HUD_RECT)
 
         # Saldo de moedas à esquerda das cartas.
         txt_moedas = self._fonte_moedas.render(f"$ {coins}", True, COLOR_GOLD)
@@ -130,7 +197,8 @@ class CardHand:
         ):
             postas = [t for t in towers if type(t) is tipo]
             self._desenhar_carta(
-                surface, rect, tipo, sprite, coins, len(postas), postas, i == self.selected
+                surface, rect, tipo, sprite, coins, len(postas), postas,
+                i == self.selected, self._nome_surfs[i], self._desc_surfs[i],
             )
 
     def draw_tooltip(self, surface: pygame.Surface) -> None:
@@ -145,7 +213,7 @@ class CardHand:
             (f"Dano: {tipo.damage}", self._fonte_tip_peq, COLOR_CARD_STATS),
             (f"Alcance: {tipo.range_px}px", self._fonte_tip_peq, COLOR_CARD_STATS),
             (f"Cadência: {tipo.fire_rate:.1f}/s", self._fonte_tip_peq, COLOR_CARD_STATS),
-            (f"Máx. no campo: {MAX_PER_TYPE}", self._fonte_tip_peq, COLOR_CARD_STATS),
+            (f"Máx. no campo: {tipo.max_no_campo}", self._fonte_tip_peq, COLOR_CARD_STATS),
             (tipo.description, self._fonte_tip_peq, COLOR_CARD_DESC),
         ]
         renders = [(f.render(t, True, c), c) for t, f, c in linhas if t]
@@ -160,7 +228,7 @@ class CardHand:
 
         fundo = pygame.Rect(x, y, larg, alt)
         painel = pygame.Surface(fundo.size, pygame.SRCALPHA)
-        painel.fill((18, 18, 32, 240))
+        painel.fill(COR_TOOLTIP_FUNDO)
         surface.blit(painel, fundo.topleft)
         pygame.draw.rect(surface, COLOR_GOLD, fundo, 1)
 
@@ -179,20 +247,22 @@ class CardHand:
         n_postas: int,
         postas: list,
         selecionada: bool,
+        nome_surf: pygame.Surface,
+        desc_surf: pygame.Surface | None,
     ) -> None:
-        """Desenha uma carta individual numa surface temporária (para alpha)."""
-        carta = pygame.Surface(rect.size, pygame.SRCALPHA)
+        """Desenha uma carta individual na surface cacheada (para alpha)."""
+        carta = self._carta_surf
+        carta.fill((0, 0, 0, 0))  # limpar antes de redesenhar
         area = pygame.Rect(0, 0, rect.width, rect.height)
-        no_limite = n_postas >= MAX_PER_TYPE
+        no_limite = n_postas >= tipo.max_no_campo
 
-        # Fundo + faixa superior mais clara (gradiente simulado).
+        # Fundo oliva escuro + faixa-topo levemente mais clara (simula border-top HTML).
         carta.fill(COLOR_CARD_BG, area)
-        carta.fill((46, 46, 76), pygame.Rect(0, 0, rect.width, 22))
+        carta.fill(COR_CARTA_TOPO, pygame.Rect(0, 0, rect.width, 2))
 
-        # Sprite no canto superior esquerdo + nome ao lado.
+        # Sprite no canto superior esquerdo + nome ao lado (já ajustado p/ caber).
         carta.blit(sprite, (8, 8))
-        txt_nome = self._fonte_nome.render(tipo.nome, True, COR_TEXTO)
-        carta.blit(txt_nome, (56, 14))
+        carta.blit(nome_surf, (56, 14))
 
         # Stats em duas linhas (monospace).
         l1 = f"Dano:{tipo.damage}  Alc:{tipo.range_px}px"
@@ -200,18 +270,18 @@ class CardHand:
         carta.blit(self._fonte_stats.render(l1, True, COLOR_CARD_STATS), (8, 47))
         carta.blit(self._fonte_stats.render(l2, True, COLOR_CARD_STATS), (8, 59))
 
-        # Descrição curta (itálico).
-        if tipo.description:
-            carta.blit(self._fonte_desc.render(tipo.description, True, COLOR_CARD_DESC), (8, 72))
+        # Descrição curta (itálico, já ajustada p/ caber).
+        if desc_surf is not None:
+            carta.blit(desc_surf, (8, 72))
 
         # Barra de slots (quantas torres deste tipo já estão no campo).
         slots_y = rect.height - SLOT_SIZE - 3
-        for s in range(MAX_PER_TYPE):
+        for s in range(tipo.max_no_campo):
             cor = COLOR_SLOT_ON if s < n_postas else COLOR_SLOT_OFF
             carta.fill(cor, pygame.Rect(8 + s * (SLOT_SIZE + SLOT_GAP), slots_y, SLOT_SIZE, SLOT_SIZE))
         # Contador textual à direita dos slots.
-        cont = self._fonte_stats.render(f"{n_postas}/{MAX_PER_TYPE}", True, COLOR_CARD_STATS)
-        carta.blit(cont, (8 + MAX_PER_TYPE * (SLOT_SIZE + SLOT_GAP) + 6, slots_y - 2))
+        cont = self._fonte_stats.render(f"{n_postas}/{tipo.max_no_campo}", True, COLOR_CARD_STATS)
+        carta.blit(cont, (8 + tipo.max_no_campo * (SLOT_SIZE + SLOT_GAP) + 6, slots_y - 2))
 
         # Indicadores de buff/habilidade (dormentes até Speed6/7 existirem).
         self._desenhar_indicadores(carta, postas, rect)
@@ -220,21 +290,19 @@ class CardHand:
         txt_custo = self._fonte_custo.render(f"${tipo.cost}", True, COLOR_GOLD)
         carta.blit(txt_custo, (rect.width - txt_custo.get_width() - 6, 2))
 
-        # Borda: dourada se selecionada, vermelha se no limite, branca senão.
+        # Borda: dourada se selecionada, vermelha se no limite, oliva-escuro senão.
         if selecionada:
-            pygame.draw.rect(carta, COLOR_SELECTED, area, 3)
+            pygame.draw.rect(carta, COLOR_SELECTED, area, 2)
         elif no_limite:
-            pygame.draw.rect(carta, COLOR_CARD_LIMIT, area, 3)
+            pygame.draw.rect(carta, COLOR_CARD_LIMIT, area, 2)
         else:
-            pygame.draw.rect(carta, COR_TEXTO, area, 1)
+            pygame.draw.rect(carta, COR_BORDA_CARTA, area, 1)
 
         surface.blit(carta, rect.topleft)
 
-        # Overlay escuro se inacessível (sem moedas ou no limite).
+        # Overlay escuro se inacessível (sem moedas ou no limite) — surface cacheada.
         if coins < tipo.cost or no_limite:
-            overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 140))
-            surface.blit(overlay, rect.topleft)
+            surface.blit(self._overlay_bloqueada_surf, rect.topleft)
 
     def _desenhar_indicadores(self, carta: pygame.Surface, postas: list, rect: pygame.Rect) -> None:
         """Indicadores defensivos de buff (`[B]`) e habilidade (`[SKILL]`/`[USADA]`).
@@ -245,7 +313,7 @@ class CardHand:
         piscando = (pygame.time.get_ticks() // 400) % 2 == 0
 
         if any(getattr(t, "buff_active", False) for t in postas) and piscando:
-            buff = self._fonte_ind.render("[B]", True, (255, 230, 60))
+            buff = self._fonte_ind.render("[B]", True, COR_BUFF_IND)
             carta.blit(buff, (rect.width - buff.get_width() - 6, rect.height - 22))
 
         # ability_used: None=sem habilidade; False=disponível; True=já usada.
@@ -255,8 +323,5 @@ class CardHand:
                 sk = self._fonte_ind.render("[SKILL]", True, COR_ROXO_IND)
                 carta.blit(sk, (4, rect.height - 22))
         elif any(e is True for e in estados):
-            sk = self._fonte_ind.render("[USADA]", True, (120, 120, 120))
+            sk = self._fonte_ind.render("[USADA]", True, COR_SKILL_USADA)
             carta.blit(sk, (4, rect.height - 22))
-
-
-COR_ROXO_IND: tuple[int, int, int] = (180, 90, 220)

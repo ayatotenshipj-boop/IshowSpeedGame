@@ -12,7 +12,11 @@ para ocupar o mesmo slot `current_screen` do loop principal.
 
 import pygame
 
-from config.settings import COLOR_GOLD, WINDOW_HEIGHT, WINDOW_WIDTH
+from config.settings import (
+    COLOR_GOLD, WINDOW_HEIGHT, WINDOW_WIDTH,
+    COR_TEXTO, COR_BOSS_ALERTA, COR_ROXO_IND,
+    COR_FUNDO_TELA, COR_INTRO_ESCURO, COR_DIALOGO_FUNDO, COR_HINT_DIALOGO,
+)
 
 # Tamanho dos retratos dos personagens.
 SPRITE_SIZE: int = 300
@@ -26,17 +30,11 @@ BOX_BOTTOM_GAP: int = 60
 CHARS_PER_SEC: float = 40.0
 WRAP_CHARS: int = 60
 
-# Cores por personagem (nome na caixa) e exibição do nome.
-COR_VERMELHO: tuple[int, int, int] = (230, 50, 50)
-COR_ROXO: tuple[int, int, int] = (180, 90, 220)
-COR_BRANCO: tuple[int, int, int] = (235, 235, 235)
-COR_HINT: tuple[int, int, int] = (150, 150, 150)
-
 # Configuração de cada personagem: chave de sprite (qualificada), lado, cor, nome.
 PERSONAGENS: dict[str, dict] = {
     "speed": {"sprite": "dialogs/speed-removebg-preview", "lado": "direita", "cor": COLOR_GOLD, "nome": "Speed"},
-    "ancelotti": {"sprite": "dialogs/ancelotti-removebg-preview", "lado": "esquerda", "cor": COR_VERMELHO, "nome": "Ancelotti"},
-    "labubu": {"sprite": "labubus/labubu1", "lado": "esquerda", "cor": COR_ROXO, "nome": "Labubu"},
+    "ancelotti": {"sprite": "dialogs/ancelotti-removebg-preview", "lado": "esquerda", "cor": COR_BOSS_ALERTA, "nome": "Ancelotti"},
+    "labubu": {"sprite": "labubus/labubu1", "lado": "esquerda", "cor": COR_ROXO_IND, "nome": "Labubu"},
 }
 
 # Sequência de falas (textos placeholder — o usuário preenche depois).
@@ -88,6 +86,10 @@ class IntroScene:
         self._fonte_nome = pygame.font.SysFont("monospace", 24, bold=True)
         self._fonte_texto = pygame.font.SysFont("monospace", 18)
         self._fonte_hint = pygame.font.SysFont("monospace", 16)
+        # Surfaces cacheadas
+        self._escuro_surf = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        self._escuro_surf.fill(COR_INTRO_ESCURO)
+        self._fade_surf = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
 
         # Fundo dinâmico: mapa do jogo escurecido (sensação de "partida prestes
         # a começar"). Ausência do asset cai para fundo preto simples.
@@ -177,26 +179,23 @@ class IntroScene:
     # ------------------------------------------------------------------ #
     def draw(self, surface: pygame.Surface) -> None:
         """Desenha fundo dinâmico, retratos, caixa de diálogo, texto e dicas."""
-        # Fundo: mapa escurecido (overlay (0,0,0,160)) ou preto se ausente.
+        # Fundo: mapa escurecido (surface cacheada) ou preto se ausente.
         if self._bg is not None:
             surface.blit(self._bg, (0, 0))
-            escuro = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-            escuro.fill((0, 0, 0, 160))
-            surface.blit(escuro, (0, 0))
+            surface.blit(self._escuro_surf, (0, 0))
         else:
-            surface.fill((0, 0, 0))
+            surface.fill(COR_FUNDO_TELA)
 
         fala = self._fala_atual()
         speaker = fala["speaker"]
         self._desenhar_retratos(surface, speaker)
         self._desenhar_caixa(surface, speaker, fala["text"])
 
-        # Fade-out de saída (preto crescente) para transição suave ao menu.
+        # Fade-out de saída (preto crescente) — Surface cacheada, fill por frame.
         if self._finishing:
             alpha = int(255 * min(1.0, self._fade_timer / FADE_OUT_DURATION))
-            fade = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-            fade.fill((0, 0, 0, alpha))
-            surface.blit(fade, (0, 0))
+            self._fade_surf.fill((0, 0, 0, alpha))
+            surface.blit(self._fade_surf, (0, 0))
 
     def _desenhar_retratos(self, surface: pygame.Surface, falante: str) -> None:
         """Desenha dois retratos (esquerda/direita); o falante em destaque.
@@ -228,8 +227,8 @@ class IntroScene:
             WINDOW_WIDTH - 2 * BOX_MARGIN,
             BOX_HEIGHT,
         )
-        pygame.draw.rect(surface, (20, 20, 20), box)
-        pygame.draw.rect(surface, COR_BRANCO, box, 2)
+        pygame.draw.rect(surface, COR_DIALOGO_FUNDO, box)
+        pygame.draw.rect(surface, COR_TEXTO, box, 2)
 
         # Nome do personagem (cor própria).
         nome = self._fonte_nome.render(cfg["nome"], True, cfg["cor"])
@@ -239,18 +238,18 @@ class IntroScene:
         visivel = texto[: self.char_index]
         y = box.y + 56
         for linha in _quebrar_texto(visivel, WRAP_CHARS):
-            render = self._fonte_texto.render(linha, True, COR_BRANCO)
+            render = self._fonte_texto.render(linha, True, COR_TEXTO)
             surface.blit(render, (box.x + 20, y))
             y += 26
 
         # Seta piscante quando a fala terminou de aparecer.
         if self._texto_completo() and (pygame.time.get_ticks() // 400) % 2 == 0:
-            seta = self._fonte_nome.render("v", True, COR_BRANCO)
+            seta = self._fonte_nome.render("v", True, COR_TEXTO)
             surface.blit(seta, (box.right - 36, box.bottom - 36))
 
         # Dica de controles no canto inferior direito da tela.
         hint = self._fonte_hint.render(
-            "ENTER: próximo | ESC: pular", True, COR_HINT
+            "ENTER: próximo | ESC: pular", True, COR_HINT_DIALOGO
         )
         surface.blit(hint, (WINDOW_WIDTH - hint.get_width() - 20, WINDOW_HEIGHT - 28))
 

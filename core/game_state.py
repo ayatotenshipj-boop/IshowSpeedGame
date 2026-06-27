@@ -29,6 +29,7 @@ class GameState:
     selected_tower: Tower | None = None  # torre inspecionada (painel aberto)
     boss_defeated: bool = False
     kills: int = 0  # inimigos eliminados por dano
+    modo_dificuldade: str = "normal"  # facil | normal | dificil (Bloco 5)
     map_grayscale: bool = False  # ativado pela habilidade do Speed7
     speed_multiplier: float = 1.0  # velocidade do jogo (1× ou 2×)
     # Efeito temporário do Speed7: enquanto > 0, sprites em speed8 + mapa cinza
@@ -38,3 +39,10 @@ class GameState:
     # spawn da onda 1; tempo_vitoria = duração total em segundos ao vencer.
     tempo_inicio: float = 0.0
     tempo_vitoria: float = 0.0
+    # Skip Wave reformulado (v1.2.0): o skip aparece 15–20s após o início de uma
+    # wave ATIVA (não no intervalo) e dá 1/4 das recompensas restantes.
+    skip_timer: float = 0.0        # tempo desde o início da wave ativa
+    skip_disponivel: bool = False  # True quando passou o limiar sorteado
+    skip_threshold: float = 0.0    # limiar sorteado (15–20s); 0 = não armado
+    auto_skip: bool = False        # toggle: aciona o skip sozinho ao ficar disponível
+    auto_skip_timer: float = 3.0   # countdown do auto-skip quando disponível

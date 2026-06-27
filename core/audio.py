@@ -168,6 +168,20 @@ class AudioManager:
                 self._cross_channel.set_volume(self._music_volume)
         return self._music_volume
 
+    def set_volume(self, valor: float) -> None:
+        """Define o volume-alvo da música (0.0–1.0) e aplica imediatamente.
+
+        Usado pelo slider das Configurações. Encerra o fade-in (o jogador
+        escolheu um valor explícito) e ajusta a música de fundo e o canal de
+        crossfade ativo.
+        """
+        self._music_volume = max(0.0, min(1.0, valor))
+        self._volume = self._music_volume  # encerra o fade-in no valor escolhido
+        if self._disponivel:
+            pygame.mixer.music.set_volume(self._music_volume)
+            if self._cross_channel is not None and not self._cross_active:
+                self._cross_channel.set_volume(self._music_volume)
+
     @property
     def volume_musica(self) -> float:
         """Volume-alvo atual da música (0.0–1.0)."""

@@ -5,6 +5,7 @@ entre ondas. O primeiro inimigo da partida só aparece após um pequeno atraso
 inicial. Toda a temporização é baseada em delta-time.
 """
 
+from config.settings import MODOS_DIFICULDADE
 from entities.boss import Ancelotti
 from entities.enemy import ENEMY_TYPES, Enemy
 
@@ -79,6 +80,10 @@ class WaveManager:
         self.wave_timer: float = INITIAL_DELAY  # tempo até iniciar a próxima onda
         self.wave_active: bool = False
 
+        # Modo de dificuldade (Bloco 5): setado no reset da partida. Aplica os
+        # multiplicadores de MODOS_DIFICULDADE na criação de cada inimigo.
+        self.modo: str = "normal"
+
         # Injetado pelo main após a criação (precisa do AssetManager).
         self.assets = None
 
@@ -118,7 +123,37 @@ class WaveManager:
         while self.spawn_queue and self.spawn_timer <= 0.0:
             spawn = self.spawn_queue.pop(0)
             classe = TIPOS[spawn["type"]]
-            enemies.append(classe(self.assets, waypoints))
+            inimigo = classe(self.assets, waypoints)
+            modo = MODOS_DIFICULDADE[self.modo]
+            
+            # Identifica o boss uma única vez para clareza
+            is_boss = spawn["type"] == "ancelotti"
+
+            # HP: escala por onda (+10%/onda, 1-based) só p/ não-boss.
+            if not is_boss:
+                wave_mult = 1.0 + (self.current_wave + 1) * 0.10
+                base_hp = inimigo.max_hp * wave_mult
+            else:
+                base_hp = inimigo.max_hp
+                
+            inimigo.max_hp = round(base_hp * modo["hp_mult"])
+            inimigo.hp = inimigo.max_hp
+            
+            # Velocidade de dificuldade
+            inimigo.speed = inimigo.speed * modo["speed_mult"]
+            
+            # Labubu4 cacheia a velocidade base
+            if hasattr(inimigo, "velocidade_base"):
+                inimigo.velocidade_base *= modo["speed_mult"]
+                
+            # Economia: Recompensa escala por onda (+5%/onda) só para não-boss.
+            if not is_boss:
+                wave_reward_mult = 1.0 + (self.current_wave * 0.05)
+                inimigo.reward = round(inimigo.reward * modo["reward_mult"] * wave_reward_mult)
+            else:
+                inimigo.reward = round(inimigo.reward * modo["reward_mult"])
+                
+            enemies.append(inimigo)
             self.spawn_timer += spawn["interval"]
 
         if not self.spawn_queue:
@@ -139,17 +174,22 @@ class WaveManager:
             return max(0.0, self.wave_timer)
         return None
 
-    def skip_wave(self) -> float:
-        """Pula a espera e inicia a próxima onda já. Retorna os segundos pulados.
+    def forcar_fim_onda(self) -> None:
+        """Encerra a wave ativa AGORA (usado pelo Skip durante a wave).
 
-        Sem efeito (retorna 0) se uma onda está em andamento ou não há mais
-        ondas — o bônus de moedas é calculado pelo chamador.
+        Esvazia a fila de spawns pendentes e avança IMEDIATAMENTE para a próxima
+        wave (v1.2.1: `wave_timer=0.0`, sem intervalo de espera — o Skip leva
+        direto à onda seguinte). Os inimigos em campo são tratados pelo chamador
+        (o Skip os elimina e concede o bônus).
         """
-        if not self.wave_active and self.current_wave < len(WAVES):
-            restante = max(0.0, self.wave_timer)
-            self.wave_timer = 0.0
-            return restante
-        return 0.0
+        if not self.wave_active:
+            return
+        self.spawn_queue.clear()
+        self.wave_timer = 0.0      # avança imediato (Bloco 3)
+        self.wave_active = False
+        self.current_wave += 1
+        if self.current_wave >= len(WAVES):
+            self._all_sent = True
 
     def display_wave(self) -> int:
         """Número da onda para exibição (1-indexado, limitado ao total)."""

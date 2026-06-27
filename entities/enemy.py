@@ -24,6 +24,7 @@ class Enemy:
     speed: float = 0.0      # pixels por segundo
     reward: int = 0         # moedas concedidas ao morrer
     asset_name: str = ""
+    damage_to_base: int = 1  # vidas que tira do jogador ao chegar ao fim
 
     def __init__(self, assets, waypoints: list[dict]) -> None:
         self.hp: int = self.max_hp
@@ -72,6 +73,7 @@ class Enemy:
                 self.x = float(alvo["x"])
                 self.y = float(alvo["y"])
                 self.waypoint_index += 1
+                self._ao_passar_waypoint()  # hook (Labubu4 desacelera por curva)
                 restante -= dist
             else:
                 # Move parcialmente em direção ao waypoint.
@@ -81,9 +83,15 @@ class Enemy:
 
         return False
 
+    def _ao_passar_waypoint(self) -> None:
+        """Hook chamado ao alcançar um waypoint (curva). Default: nada.
+
+        Subclasses podem reagir a cada curva (ex.: Labubu4 desacelera).
+        """
+
     def apply_slow(self, duration: float = 2.0) -> None:
         """Ativa o efeito de lentidão (metade da velocidade) por `duration`s."""
-        self.slow_factor = 0.5
+        self.slow_factor = 0.4
         self.slow_timer = duration
 
     def is_dead(self) -> bool:
@@ -125,38 +133,101 @@ class Labubu1(Enemy):
     name = "labubu1"
     max_hp = 60
     speed = 120.0
-    reward = 10
+    reward = 15  # v1.2.1 (era 10)
     asset_name = "labubu1"
 
 
 class Labubu2(Enemy):
-    """Médio."""
+    """Médio, equilibrado."""
 
     name = "labubu2"
-    max_hp = 120
+    max_hp = 140
     speed = 80.0
-    reward = 20
+    reward = 30  # v1.2.1 (era 20)
     asset_name = "labubu2"
 
 
 class Labubu3(Enemy):
-    """Lento e resistente."""
+    """Tanque lento e resistente."""
 
     name = "labubu3"
-    max_hp = 250
+    max_hp = 300
     speed = 50.0
-    reward = 35
+    reward = 50  # v1.2.1 (era 35)
     asset_name = "labubu3"
+    damage_to_base = 2
 
 
 class Labubu4(Enemy):
-    """Rápido e resistente."""
+    """Rápido e resistente; cansa (desacelera) após 4 curvas."""
 
     name = "labubu4"
-    max_hp = 200
+    max_hp = 220
     speed = 110.0
-    reward = 30
+    reward = 45  # v1.2.1 (era 30)
     asset_name = "labubu4"
+    damage_to_base = 2
+
+    def __init__(self, assets, waypoints: list[dict]) -> None:
+        super().__init__(assets, waypoints)
+        self.curvas: int = 0
+        self.velocidade_base: float = type(self).speed
+
+    def _ao_passar_waypoint(self) -> None:
+        """A cada curva além da 4ª, perde 10% da velocidade base (piso 30%)."""
+        self.curvas += 1
+        if self.curvas > 4:
+            reducao = (self.curvas - 4) * 0.05
+            self.speed = max(
+                self.velocidade_base * 0.30,
+                self.velocidade_base * (1.0 - reducao),
+            )
+
+
+class LabubuMUI(Enemy):
+    """Reforço invocado pelo Ancelotti ao tomar dano (50% mais fraco).
+
+    Reaproveita o sprite do Labubu1 com um tint vermelho para diferenciar.
+    Os stats reais são definidos pela fábrica `criar_mui` (dependem da wave).
+    NÃO entra em `ENEMY_TYPES`: nunca é spawnado por onda, só pelo boss.
+    """
+
+    name = "Labubu MUI"
+    max_hp = 30   # placeholder; criar_mui sobrescreve
+    speed = 60.0
+    reward = 8   # v1.2.1 (piso); criar_mui sobrescreve
+    asset_name = "labubu1"  # reaproveita o sprite do Labubu1
+    damage_to_base = 1
+
+    def __init__(self, assets, waypoints: list[dict]) -> None:
+        super().__init__(assets, waypoints)
+        # Tint vermelho numa CÓPIA (não corromper o sprite cacheado no AssetManager).
+        self.sprite = self.sprite.copy()
+        self.sprite.fill((255, 80, 80, 255), special_flags=pygame.BLEND_RGBA_MULT)
+
+
+def criar_mui(assets, waypoints: list[dict], wave_atual: int) -> LabubuMUI:
+    """Cria um Labubu MUI com 50% dos stats do Labubu de referência da wave.
+
+    `wave_atual` é 1-based (número de exibição). Aplica o mesmo multiplicador de
+    HP por wave usado nas ondas, depois reduz tudo em 50%.
+    """
+    if wave_atual >= 12:
+        ref_hp, ref_speed, ref_reward = 220, 110, 45   # Labubu4 base (reward v1.2.1)
+    elif wave_atual >= 8:
+        ref_hp, ref_speed, ref_reward = 300, 50, 50    # Labubu3 base (reward v1.2.1)
+    elif wave_atual >= 5:
+        ref_hp, ref_speed, ref_reward = 140, 80, 30    # Labubu2 base (reward v1.2.1)
+    else:
+        ref_hp, ref_speed, ref_reward = 60, 120, 15    # Labubu1 base (reward v1.2.1)
+
+    mult = 1.0 + wave_atual * 0.10
+    mui = LabubuMUI(assets, waypoints)
+    mui.max_hp = int(ref_hp * mult * 0.5)
+    mui.hp = mui.max_hp
+    mui.speed = ref_speed * 0.5
+    mui.reward = max(8, int(ref_reward * 0.5))
+    return mui
 
 
 # Mapeia o nome usado nas ondas para a classe correspondente.

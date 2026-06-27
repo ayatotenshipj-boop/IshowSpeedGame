@@ -1,14 +1,19 @@
 """Torres (Speeds) que o jogador posiciona no campo.
 
-Define a classe base `Tower` e as quatro subclasses jogáveis (Speed1..Speed4).
-Os atributos de jogo (custo, dano, alcance, cadência) são atributos de classe;
-cada instância carrega seu sprite uma vez via AssetManager e guarda a célula
-onde foi posicionada. Nenhum import de pygame_gui aqui (regra de arquitetura).
+Define a classe base `Tower` e as subclasses jogáveis (Speed1..Speed5, Speed7).
+Os atributos de jogo (custo, dano, alcance, cadência, limite no campo) são
+atributos de classe; cada instância carrega seu sprite uma vez via AssetManager
+e guarda a célula onde foi posicionada. Nenhum import de pygame_gui aqui
+(regra de arquitetura).
+
+Os nomes exibidos (`nome`) seguem o personagem (Shake It Speed, etc.). Speed5
+incorpora o antigo Speed6: é uma carta única que entra em "modo buff" (sprite
+speed6, dano dobrado por 5s, cooldown 15s) ao ser ativada na torre posicionada.
 """
 
 import pygame
 
-from config.settings import CELL_SIZE
+from config.settings import CELL_SIZE, MAX_PER_TYPE
 from entities.enemy import Enemy
 from entities.projectile import Projectile
 
@@ -17,7 +22,7 @@ SPRITE_SIZE: int = CELL_SIZE - 8  # 56×56
 
 # Sistema de upgrade.
 MAX_LEVEL: int = 3
-UPGRADE_DANO: float = 0.25       # +25% de dano por nível
+UPGRADE_DANO: float = 0.30       # +30% de dano por nível
 UPGRADE_ALCANCE: float = 0.10    # +10% de alcance por nível
 UPGRADE_CADENCIA: float = 0.10   # +10% de cadência por nível
 UPGRADE_CUSTO_BASE: float = 0.60  # custo do 1º upgrade = 60% do custo base
@@ -38,6 +43,9 @@ class Tower:
     asset_name: str = ""
     description: str = ""    # texto curto exibido na carta
     cell_radius: int = 0     # raio de ocupação em células (0 = só a própria)
+    # Máximo desta torre no campo. Default = limite global; subclasses podem
+    # restringir (ex.: Speed4/Speed7 = 1).
+    max_no_campo: int = MAX_PER_TYPE
 
     def __init__(self, assets, x: float, y: float, cell_x: int, cell_y: int) -> None:
         # Posição exata em pixels de tela (posicionamento livre, sem snap ao grid).
@@ -181,91 +189,78 @@ class Tower:
 
 
 class Speed1(Tower):
-    """Torre básica, barata, ataque rápido e fraco."""
+    """Shake It Speed — early game, barato, cadência alta."""
 
-    nome = "Speed1"
+    nome = "Shake It Speed"
     cost = 50
-    damage = 10
-    range_px = 128
-    fire_rate = 2.0  # básica deve ser responsiva
+    damage = 9        # já com buff v1.2.1 (+5%: 8.4 -> 8)
+    range_px = 120
+    fire_rate = 2.10  # já com buff v1.2.1 (+5%); ponto forte: cadência alta
     slow = False
     asset_name = "speed1"
-    description = "Tiro rápido e barato"
+    description = "Cadência alta. Fraco contra tanques."
 
 
 class Speed2(Tower):
-    """Área de efeito maior."""
+    """Suprised Speed — early/mid, maior alcance."""
 
-    nome = "Speed2"
-    cost = 80
-    damage = 8
-    range_px = 192
-    fire_rate = 1.0
+    nome = "Suprised Speed"
+    cost = 75
+    damage = 14      # já com buff v1.2.1 (+5%: 10.5 -> 11)
+    range_px = 220   # ponto forte: maior alcance
+    fire_rate = 1.15  # já com buff v1.2.1 (+5%)
     slow = False
     asset_name = "speed2"
-    description = "Longo alcance"
+    description = "Alcance amplo. Cadência lenta."
 
 
 class Speed3(Tower):
-    """Projétil lento, dano alto."""
+    """SayWallahi Speed — sniper de dano massivo, alcance curto."""
 
-    nome = "Speed3"
-    cost = 120
-    damage = 35
-    range_px = 96
-    fire_rate = 0.5
+    nome = "SayWallahi Speed"
+    cost = 110
+    damage = 47   # já com buff v1.2.1 (+5%: 47.25 -> 47); ponto forte: dano altíssimo
+    range_px = 135
+    fire_rate = 0.55  # já com buff v1.2.1 (+5%)
     slow = False
     asset_name = "speed3"
-    description = "Dano alto, lento"
+    description = "Dano massivo. Alcance curto e lento."
     cell_radius = 1  # torre grande: bloqueia área 3×3
 
 
 class Speed4(Tower):
-    """Torre de suporte: rápida e reduz a velocidade dos inimigos."""
+    """KindaHomeless Speed — suporte de lentidão; só 1 no campo."""
 
-    nome = "Speed4"
-    cost = 100
-    damage = 5
+    nome = "KindaHomeless Speed"
+    cost = 75  # v1.2.1: luxo de suporte (era 95); sem buff (papel de suporte)
+    damage = 6
     range_px = 160
-    fire_rate = 2.0
-    slow = True
+    fire_rate = 1.8
+    slow = True  # ponto forte: aplica lentidão
     asset_name = "speed4"
-    description = "Reduz velocidade"
+    description = "Aplica lentidão. Só 1 por vez."
+    max_no_campo = 1  # limite de 1 instância (Ancelotti é imune ao slow)
 
 
 class Speed5(Tower):
-    """Torre equilibrada (modo padrão da dupla Speed5/Speed6)."""
+    """Speed5 — versátil, com buff ativável (incorpora o antigo Speed6).
 
-    nome = "Speed5"
-    cost = 90
-    damage = 12
-    range_px = 150
-    fire_rate = 1.8
-    slow = False
-    asset_name = "speed5"
-    description = "Modo padrão equilibrado"
-    cell_radius = 0
-
-
-class Speed6(Tower):
-    """Variante com buff temporário: dobra o dano por 5s (cooldown 15s).
-
-    Mesmos stats-base do Speed5. O buff é ativado clicando na torre já
-    posicionada (via `activate_buff`). O `update` decrementa os timers e ajusta
-    o dano efetivo antes de disparar.
+    Estado base: sprite `speed5`, stats normais. Ao ativar o buff (clicar na
+    torre posicionada), troca para o sprite `speed6` e dobra o dano por 5s; ao
+    fim, volta ao sprite base e entra em cooldown de 15s.
     """
 
-    nome = "Speed6"
-    cost = 90
-    damage = 12
+    nome = "ShockedSpeed"  # v1.2.1 (era "Speed5")
+    cost = 160
+    damage = 15      # já com buff v1.2.1 (+5%: 18.9 -> 19)
     range_px = 150
-    fire_rate = 1.8
+    fire_rate = 1.575  # já com buff v1.2.1 (+5%)
     slow = False
-    asset_name = "speed6"
-    description = "BUFF ATIVO: dobra dano por 5s"
+    asset_name = "speed5"
+    description = "Versátil. Buff dobra dano por 5s (CD: 15s)."
     cell_radius = 0
 
-    # Duração do buff e do cooldown (segundos).
+    # Duração do buff (segundos).
     BUFF_DURATION: float = 5.0
 
     def __init__(self, assets, x: float, y: float, cell_x: int, cell_y: int) -> None:
@@ -274,14 +269,33 @@ class Speed6(Tower):
         self.buff_timer: float = 0.0
         self.buff_cooldown: float = 15.0
         self.cooldown_timer: float = 0.0
+        # Sprites base (speed5) e de buff (speed6). O buff troca self.sprite
+        # apenas nas transições, para não conflitar com o swap global do Speed7.
+        self._sprite_base: pygame.Surface = self.sprite
+        try:
+            self._sprite_buff: pygame.Surface = pygame.transform.smoothscale(
+                assets.get("speed6"), (SPRITE_SIZE, SPRITE_SIZE)
+            )
+        except KeyError:
+            self._sprite_buff = self._sprite_base  # asset ausente: mantém o base
 
     def activate_buff(self) -> bool:
         """Ativa o buff se possível (não ativo e fora de cooldown). Retorna sucesso."""
         if not self.buff_active and self.cooldown_timer <= 0.0:
             self.buff_active = True
             self.buff_timer = self.BUFF_DURATION
+            self.sprite = self._sprite_buff  # transição: vira modo buff (speed6)
             return True
         return False
+
+    def refresh_sprite(self) -> None:
+        """Restaura o sprite correto conforme o estado do buff.
+
+        Usado após o efeito do Speed7 (que troca o sprite de todas as torres por
+        speed8 e depois reverte): se o buff ainda está ativo, o sprite deve
+        voltar para speed6, não para o base.
+        """
+        self.sprite = self._sprite_buff if self.buff_active else self._sprite_base
 
     def update(self, dt: float, enemies: list[Enemy]) -> Projectile | None:
         """Avança os timers do buff; o dano dobrado é aplicado em effective_damage."""
@@ -290,6 +304,7 @@ class Speed6(Tower):
             if self.buff_timer <= 0.0:
                 self.buff_active = False
                 self.cooldown_timer = self.buff_cooldown
+                self.sprite = self._sprite_base  # transição: volta ao base (speed5)
         elif self.cooldown_timer > 0.0:
             self.cooldown_timer -= dt
         return super().update(dt, enemies)
@@ -300,17 +315,18 @@ class Speed6(Tower):
 
 
 class Speed7(Tower):
-    """Torre de habilidade global: não atira; ao ser clicada, hitkill geral."""
+    """KillThatBoy — habilidade global: não atira; ao ser usada, hitkill geral."""
 
-    nome = "Speed7"
-    cost = 300
+    nome = "KillThatBoy"
+    cost = 1000
     damage = 0
     range_px = 9999
     fire_rate = 0.0
     slow = False
     asset_name = "speed7"
-    description = "HABILIDADE: hitkill todos os inimigos"
+    description = "Hitkill global. Uso único. Não vendável."
     cell_radius = 1
+    max_no_campo = 1  # uso único por partida; só 1 no campo
 
     def __init__(self, assets, x: float, y: float, cell_x: int, cell_y: int) -> None:
         super().__init__(assets, x, y, cell_x, cell_y)
@@ -334,6 +350,7 @@ class Speed7(Tower):
 
 
 # Fonte única das torres jogáveis — usada pela mão de cartas e pelo posicionamento.
+# Speed6 foi unificado ao Speed5 (modo buff), então não é mais uma carta separada.
 TOWER_TYPES: list[type[Tower]] = [
-    Speed1, Speed2, Speed3, Speed4, Speed5, Speed6, Speed7
+    Speed1, Speed2, Speed3, Speed4, Speed5, Speed7
 ]

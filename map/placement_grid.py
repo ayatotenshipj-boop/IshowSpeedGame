@@ -22,6 +22,8 @@ from config.settings import (
     CROP_TOP,
     MAP_RECT,
     RAIZ_PROJETO,
+    COR_SETA_PATH,
+    COR_DEBUG_OCUPADO,
 )
 
 # Estados possíveis de uma célula.
@@ -198,6 +200,18 @@ class PlacementGrid:
     # ------------------------------------------------------------------ #
     # Render do path (modo normal de jogo)
     # ------------------------------------------------------------------ #
+    def _get_path_overlay(self) -> pygame.Surface:
+        """Retorna (criando se necessário) a surface cacheada do overlay de path."""
+        if not hasattr(self, "_path_overlay_surf"):
+            self._path_overlay_surf = pygame.Surface(MAP_RECT.size, pygame.SRCALPHA)
+        return self._path_overlay_surf
+
+    def _get_debug_overlay(self) -> pygame.Surface:
+        """Retorna (criando se necessário) a surface cacheada do overlay de debug."""
+        if not hasattr(self, "_debug_overlay_surf"):
+            self._debug_overlay_surf = pygame.Surface(MAP_RECT.size, pygame.SRCALPHA)
+        return self._debug_overlay_surf
+
     def draw_path(
         self,
         surface: pygame.Surface,
@@ -222,7 +236,8 @@ class PlacementGrid:
         cor_base = COR_PATH if color is None else color
         # Pulsação: alpha oscila suavemente entre ~50 e ~120 (se não fixado).
         pulso = alpha if alpha is not None else int(85 + 35 * math.sin(ticks * 2.0))
-        overlay = pygame.Surface(MAP_RECT.size, pygame.SRCALPHA)
+        overlay = self._get_path_overlay()
+        overlay.fill((0, 0, 0, 0))
 
         # Faixa larga ligando os waypoints (coords relativas ao overlay do mapa).
         pontos = [(x - MAP_RECT.x, y - MAP_RECT.y) for x, y in self._waypoints_px]
@@ -251,19 +266,19 @@ class PlacementGrid:
     def _desenhar_seta(overlay, ax: float, ay: float, ux: float, uy: float) -> None:
         """Triângulo branco apontando na direção (ux, uy)."""
         tam = 9
-        # Perpendicular para a base do triângulo.
         px, py = -uy, ux
         ponta = (ax + ux * tam, ay + uy * tam)
         b1 = (ax - ux * tam + px * tam * 0.7, ay - uy * tam + py * tam * 0.7)
         b2 = (ax - ux * tam - px * tam * 0.7, ay - uy * tam - py * tam * 0.7)
-        pygame.draw.polygon(overlay, (245, 245, 245, 200), [ponta, b1, b2])
+        pygame.draw.polygon(overlay, COR_SETA_PATH, [ponta, b1, b2])
 
     # ------------------------------------------------------------------ #
     # Render de debug (modo dev)
     # ------------------------------------------------------------------ #
     def draw_debug(self, surface: pygame.Surface) -> None:
         """Desenha grade cinza e realça células PATH (vermelho) e OCCUPIED (azul)."""
-        overlay = pygame.Surface(MAP_RECT.size, pygame.SRCALPHA)
+        overlay = self._get_debug_overlay()
+        overlay.fill((0, 0, 0, 0))
 
         # Realce das células por estado.
         for cy in range(self.rows):
@@ -272,7 +287,7 @@ class PlacementGrid:
                 if estado == PATH:
                     cor = (*COR_PATH, 120)
                 elif estado == OCCUPIED:
-                    cor = (40, 90, 220, 120)
+                    cor = COR_DEBUG_OCUPADO
                 else:
                     continue
                 rect = pygame.Rect(

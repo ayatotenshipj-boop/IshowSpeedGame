@@ -12,6 +12,7 @@ class GameScreen(Enum):
 
     INTRO = auto()      # cena de diálogo antes do menu
     MENU = auto()
+    SELECAO_MODO = auto()  # seleção de dificuldade (após JOGAR, antes da intro)
     PLAYING = auto()
     PAUSED = auto()
     GAME_OVER = auto()

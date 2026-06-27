@@ -10,6 +10,7 @@ Uso:
 """
 
 import logging
+import random
 import sys
 import threading
 import time
@@ -18,25 +19,34 @@ import pygame
 import pygame_gui
 
 from config.settings import (
-    COLOR_HUD_BG,
     FPS,
     HIT_RADIUS,
     HUD_RECT,
     MAP_RECT,
-    MAX_PER_TYPE,
+    MODOS_DIFICULDADE,
     RENDER_HEIGHT,
     RENDER_WIDTH,
     WINDOW_HEIGHT,
     WINDOW_TITLE,
     WINDOW_WIDTH,
+    COR_FUNDO_TELA,
+    COR_CIANO,
+    COR_OVERLAY_LIVRE,
+    COR_OVERLAY_PATH,
+    COR_OVERLAY_VALIDO,
+    COR_OVERLAY_INVALIDO,
+    ALPHA_OVERLAY_GLOBAL,
+    ALPHA_OVERLAY_HOVER,
+    COR_MAP_GRAYSCALE,
 )
 from core.asset_manager import AssetManager
 from core.audio import AudioManager
 from core.game_state import GameState
 from core.state_manager import GameScreen, StateManager
 from core.updater import Updater
-from core import leaderboard
-from entities.tower import SPRITE_SIZE, TOWER_TYPES, Speed6, Speed7
+from core import conquistas, leaderboard
+from entities.boss import Ancelotti
+from entities.tower import SPRITE_SIZE, TOWER_TYPES, Speed5, Speed7
 from entities.wave_manager import WAVES
 from map.game_map import GameMap
 from map.placement_grid import PlacementGrid
@@ -51,6 +61,7 @@ from ui.hud import HUD
 from ui.intro_scene import IntroScene
 from ui.leaderboard_screen import LeaderboardScreen
 from ui.menus import GameOverScreen, MenuScreen, PauseScreen, VictoryScreen
+from ui.modo_screen import ModoScreen
 from ui.nome_vitoria_screen import NomeVitoriaScreen
 from ui.tower_panel import TowerPanel
 from ui.update_screen import (
@@ -121,7 +132,7 @@ def _mostrar_resultado_update(result_screen, tela, render_surface, clock) -> Non
                 sys.exit()
             if result_screen.handle_event(_traduzir_evento(evento)):
                 aguardando = False
-        render_surface.fill((0, 0, 0))
+        render_surface.fill(COR_FUNDO_TELA)
         result_screen.draw(render_surface)
         _apresentar(tela, render_surface)
 
@@ -155,7 +166,7 @@ def _executar_fluxo_update(
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-        render_surface.fill((0, 0, 0))
+        render_surface.fill(COR_FUNDO_TELA)
         check_screen.draw(render_surface)
         _apresentar(tela, render_surface)
 
@@ -180,7 +191,7 @@ def _executar_fluxo_update(
 
     def _progresso_bytes(baixados: int, total: int) -> None:
         _atualizar_escala(tela)
-        render_surface.fill((0, 0, 0))
+        render_surface.fill(COR_FUNDO_TELA)
         progress_screen.draw(render_surface, baixados, total)
         _apresentar(tela, render_surface)
         pygame.event.pump()  # mantém a janela responsiva durante o download
@@ -199,7 +210,7 @@ def _executar_fluxo_update(
         updater.save_local_version(remote)
         # Tela "concluído" breve antes de trocar o binário e reiniciar.
         _atualizar_escala(tela)
-        render_surface.fill((0, 0, 0))
+        render_surface.fill(COR_FUNDO_TELA)
         UpdateResultScreen(
             None, "updated",
             version=remote.get("version"),
@@ -247,6 +258,13 @@ def main() -> None:
     state = GameState()
     state.wave_manager.assets = assets
 
+    # Surfaces de overlay cacheadas — criadas uma vez, reutilizadas por frame.
+    overlay_free_surf = pygame.Surface(MAP_RECT.size, pygame.SRCALPHA)
+    overlay_free_surf.fill((*COR_OVERLAY_LIVRE, ALPHA_OVERLAY_GLOBAL))
+    cinza_surf = pygame.Surface(MAP_RECT.size, pygame.SRCALPHA)
+    cinza_surf.fill(COR_MAP_GRAYSCALE)
+    preview_surf = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+
     # Waypoints já recalculados pelo recorte do mapa (fonte única no grid).
     # Idênticos a cada recriação do grid, então capturados uma vez aqui.
     waypoints = grid.waypoints
@@ -277,16 +295,22 @@ def main() -> None:
     # (não reinicia ao começar a partida — evita a música "tocar de novo").
     audio.iniciar_fundo()
 
-    def reset_game() -> None:
-        """Reinicia o estado da partida (GameState/grid/cartas).
+    def reset_game(modo: str = "normal") -> None:
+        """Reinicia o estado da partida (GameState/grid/cartas) no `modo` dado.
 
         NÃO mexe na música: ela já está tocando desde o menu e deve continuar
         contínua até a partida (evita reinício ao clicar em JOGAR). A restauração
         da música é feita só nas transições de tela (menu/fim de jogo).
+
+        O modo de dificuldade (Bloco 5) define as vidas iniciais e os
+        multiplicadores aplicados pelo WaveManager na criação dos inimigos.
         """
         nonlocal state, grid
         state = GameState()
+        state.modo_dificuldade = modo
+        state.lives = MODOS_DIFICULDADE[modo]["lives"]
         state.wave_manager.assets = assets
+        state.wave_manager.modo = modo
         grid = PlacementGrid()
         card_hand.deselect()
 
@@ -359,11 +383,10 @@ def main() -> None:
                     continue
                 acao = current_screen.handle_event(evento)
                 if acao == "play":
-                    # JOGAR: prepara a partida e exibe a intro antes do jogo.
+                    # JOGAR: vai para a seleção de dificuldade antes da intro.
                     current_screen.destroy()
-                    reset_game()
-                    current_screen = IntroScene(assets)
-                    state_manager.transition(GameScreen.INTRO)
+                    current_screen = ModoScreen(ui_manager, assets)
+                    state_manager.transition(GameScreen.SELECAO_MODO)
                 elif acao == "quit":
                     rodando = False
                 elif acao == "update":
@@ -380,6 +403,20 @@ def main() -> None:
                         ui_manager, versao_atual, changelog_texto
                     )
                     current_screen.set_botoes_visiveis(False)
+
+            elif state_manager.current == GameScreen.SELECAO_MODO:
+                acao = current_screen.handle_event(evento)
+                if acao == "voltar":
+                    # Volta ao menu principal sem iniciar partida.
+                    current_screen.destroy()
+                    current_screen = MenuScreen(ui_manager, assets, audio)
+                    state_manager.transition(GameScreen.MENU)
+                elif acao in MODOS_DIFICULDADE:
+                    # Modo escolhido: prepara a partida e exibe a intro.
+                    current_screen.destroy()
+                    reset_game(acao)
+                    current_screen = IntroScene(assets)
+                    state_manager.transition(GameScreen.INTRO)
 
             elif state_manager.current == GameScreen.PLAYING:
                 if evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
@@ -406,12 +443,17 @@ def main() -> None:
                                 1.0 if state.speed_multiplier >= 2.0 else 2.0
                             )
                             continue
+                        # Auto-Skip: toggle sempre disponível durante o jogo.
+                        if hud.auto_button_rect().collidepoint(pos):
+                            state.auto_skip = not state.auto_skip
+                            continue
+                        # Skip durante a wave: só quando disponível (15–20s após
+                        # o início) — elimina os restantes e dá o bônus.
                         if (
-                            state.wave_manager.time_to_next_wave() is not None
+                            state.skip_disponivel
                             and hud.skip_button_rect().collidepoint(pos)
                         ):
-                            restante = state.wave_manager.skip_wave()
-                            state.coins += hud.skip_bonus(restante)
+                            _executar_skip(state)
                             continue
                         # 1) Painel de torre aberto tem prioridade sobre o resto.
                         acao_painel = (
@@ -464,7 +506,7 @@ def main() -> None:
                                 grid.is_placeable(click_x, click_y)
                                 and sem_sobreposicao
                                 and state.coins >= tipo.cost
-                                and n_tipo < MAX_PER_TYPE
+                                and n_tipo < tipo.max_no_campo
                             ):
                                 state.towers.append(
                                     tipo(assets, click_x, click_y, cx, cy)
@@ -510,9 +552,15 @@ def main() -> None:
                             daemon=True,
                         ).start()
                     state_manager.transition(GameScreen.VICTORY)
+                    # Conquista por modo: desbloqueia e mostra banner se for nova.
+                    conq_id = f"vitoria_{state.modo_dificuldade}"
+                    nova = conquistas.desbloquear(conq_id)
                     current_screen = VictoryScreen(
                         ui_manager, state.kills, state.coins, victory_image,
                         tempo=state.tempo_vitoria,
+                        nova_conquista=(
+                            conquistas.CONQUISTAS_DEF.get(conq_id) if nova else None
+                        ),
                     )
 
             elif state_manager.current in (GameScreen.GAME_OVER, GameScreen.VICTORY):
@@ -520,7 +568,7 @@ def main() -> None:
                 if acao == "retry":
                     current_screen.destroy()
                     current_screen = None
-                    reset_game()
+                    reset_game(state.modo_dificuldade)  # mantém o modo da partida
                     state_manager.transition(GameScreen.PLAYING)
                 elif acao == "menu":
                     current_screen.destroy()
@@ -550,7 +598,8 @@ def main() -> None:
                 state_manager.transition(GameScreen.PLAYING)
 
         if state_manager.current == GameScreen.PLAYING:
-            _atualizar_jogo(dt_efetivo, state, waypoints)
+            _atualizar_jogo(dt_efetivo, state, waypoints, assets)
+            _atualizar_skip(dt_efetivo, state)  # Skip/Auto-Skip durante a wave
             card_hand.update(dt, to_render(pygame.mouse.get_pos()))  # hover (real)
 
             # Cronômetro: inicia no primeiro inimigo que entra em campo (onda 1).
@@ -571,7 +620,17 @@ def main() -> None:
                 audio.parar()
                 audio.iniciar_fundo()
                 state_manager.transition(GameScreen.GAME_OVER)
-                current_screen = GameOverScreen(ui_manager)
+                tempo_sobrev = (time.time() - state.tempo_inicio) if state.tempo_inicio > 0.0 else 0.0
+                current_screen = GameOverScreen(
+                    ui_manager,
+                    kills=state.kills,
+                    coins=state.coins,
+                    lives=0,
+                    onda_atual=state.wave_manager.wave_numero,
+                    onda_total=len(WAVES),
+                    tempo=tempo_sobrev,
+                    modo=state.modo_dificuldade.upper(),
+                )
             # Checa vitória (ondas concluídas, sem inimigos e boss derrotado).
             elif (
                 state.wave_manager.is_finished()
@@ -591,7 +650,7 @@ def main() -> None:
         _atualizar_cursor(state_manager, state, card_hand)
 
         # --- Render --- (tudo desenhado na Surface interna render_surface)
-        render_surface.fill(COLOR_HUD_BG)
+        render_surface.fill(COR_FUNDO_TELA)
 
         if state_manager.current in (GameScreen.PLAYING, GameScreen.PAUSED):
             _desenhar_mundo(
@@ -600,26 +659,22 @@ def main() -> None:
             )
             # Tom acinzentado sobre o mapa após a habilidade do Speed7.
             if state.map_grayscale:
-                cinza = pygame.Surface(MAP_RECT.size, pygame.SRCALPHA)
-                cinza.fill((128, 128, 128, 120))
-                render_surface.blit(cinza, MAP_RECT.topleft)
+                render_surface.blit(cinza_surf, MAP_RECT.topleft)
             # Overlays de posicionamento (somente em jogo, com carta selecionada):
             # verde onde pode posicionar; trilha vermelha forte onde não pode.
             if (
                 state_manager.current == GameScreen.PLAYING
                 and state.selected_card is not None
             ):
-                overlay_free = pygame.Surface(MAP_RECT.size, pygame.SRCALPHA)
-                overlay_free.fill((50, 200, 50, 45))
-                render_surface.blit(overlay_free, MAP_RECT.topleft)
+                render_surface.blit(overlay_free_surf, MAP_RECT.topleft)
                 grid.draw_path(
                     render_surface,
                     pygame.time.get_ticks() / 1000.0,
-                    color=(200, 40, 40),
+                    color=COR_OVERLAY_PATH,
                     alpha=140,
                 )
-                # Preview do círculo de alcance sob o cursor, por cima.
-                _desenhar_preview(render_surface, state)
+                # Preview de range (verde=válido, vermelho=inválido) sob o cursor.
+                _desenhar_preview(render_surface, state, grid, preview_surf)
             # Painel da torre selecionada (status, upgrade, venda).
             if (
                 state_manager.current == GameScreen.PLAYING
@@ -641,6 +696,9 @@ def main() -> None:
                 tempo_decorrido=(
                     time.time() - state.tempo_inicio if state.tempo_inicio > 0 else None
                 ),
+                skip_disponivel=state.skip_disponivel,
+                skip_bonus=_skip_bonus(state),
+                auto_skip=state.auto_skip,
             )
             # Tooltip da carta sob o cursor (apenas em jogo, por cima de tudo).
             if state_manager.current == GameScreen.PLAYING:
@@ -683,7 +741,7 @@ def _processar_acao_painel(acao: str, state: GameState, grid, assets, audio) -> 
                 state.coins -= custo
                 torre.apply_upgrade(custo)
     elif acao == "buff":
-        if isinstance(torre, Speed6):
+        if isinstance(torre, Speed5):
             torre.activate_buff()
     elif acao == "ability":
         if isinstance(torre, Speed7) and torre.use_ability():
@@ -749,6 +807,11 @@ def _encerrar_efeito_speed7(state: GameState, assets, audio) -> None:
     state.map_grayscale = False
     # Restaura o sprite original de cada torre (recarrega pelo asset_name).
     for torre in state.towers:
+        # Speed5 com buff ativo deve voltar para o sprite de buff (speed6), não
+        # para o base — delega à própria torre.
+        if isinstance(torre, Speed5):
+            torre.refresh_sprite()
+            continue
         try:
             torre.sprite = pygame.transform.smoothscale(
                 assets.get(torre.asset_name), (SPRITE_SIZE, SPRITE_SIZE)
@@ -757,7 +820,67 @@ def _encerrar_efeito_speed7(state: GameState, assets, audio) -> None:
             pass  # asset ausente: mantém o sprite atual
 
 
-def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict]) -> None:
+def _atualizar_skip(dt: float, state: GameState) -> None:
+    """Controla o aparecimento do Skip durante a wave e o Auto-Skip.
+
+    O Skip é armado quando a wave fica ativa (limiar sorteado 15–20s); fica
+    disponível após o limiar se ainda há inimigos. Com Auto-Skip ligado, aciona
+    sozinho após 3s. Entre waves, desarma. Usa tempo de jogo (dt já com 2×).
+    """
+    wm = state.wave_manager
+    # A wave conta como "em andamento" enquanto ainda há inimigos no campo —
+    # `wave_active` vira False assim que a fila de spawns esvazia (todos
+    # invocados), mas o combate continua. Sem isto o Skip nunca apareceria nas
+    # ondas cujo spawn termina antes do limiar de 15–20s.
+    em_andamento = wm.wave_active or bool(state.enemies)
+    if em_andamento:
+        if state.skip_threshold <= 0.0:
+            state.skip_threshold = random.uniform(15.0, 20.0)
+            state.skip_timer = 0.0
+            state.skip_disponivel = False
+            state.auto_skip_timer = 3.0
+        state.skip_timer += dt
+        if state.skip_timer >= state.skip_threshold and state.enemies:
+            state.skip_disponivel = True
+        if state.skip_disponivel and state.auto_skip:
+            state.auto_skip_timer -= dt
+            if state.auto_skip_timer <= 0.0:
+                _executar_skip(state)
+    else:
+        state.skip_threshold = 0.0
+        state.skip_disponivel = False
+
+
+def _skip_bonus(state: GameState) -> int:
+    """Bônus do Skip: 1/4 das recompensas dos inimigos restantes na wave."""
+    return sum(e.reward for e in state.enemies) // 4
+
+
+def _executar_skip(state: GameState) -> None:
+    """Executa o Skip: bônus, elimina os inimigos restantes e avança a wave."""
+    if not state.skip_disponivel:
+        return
+    state.coins += _skip_bonus(state)
+    # Se o boss está em campo, o skip também o derrota (senão a vitória nunca
+    # dispara e a partida trava).
+    for e in state.enemies:
+        if e.name == "Ancelotti":
+            state.boss_defeated = True
+    state.enemies.clear()
+    state.projectiles.clear()
+    wm = state.wave_manager
+    if wm.wave_active:
+        wm.forcar_fim_onda()   # ainda spawnando: avança a onda (zera wave_timer)
+    else:
+        # Spawn já terminou (a onda foi contabilizada por _spawnar): só restavam
+        # inimigos em campo. Elimina a espera do intervalo p/ a próxima começar já.
+        wm.wave_timer = 0.0
+    state.skip_disponivel = False
+    state.skip_threshold = 0.0
+    state.skip_timer = 0.0
+
+
+def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict], assets) -> None:
     """Atualiza torres, projéteis, inimigos, flashes e ondas (apenas PLAYING)."""
     # 1. Torres miram e disparam.
     for torre in state.towers:
@@ -769,9 +892,21 @@ def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict]) -> None:
     for proj in state.projectiles[:]:
         if proj.update(dt):
             if not proj.target.is_dead():
-                proj.target.hp -= proj.damage
-                if proj.apply_slow:
-                    proj.target.apply_slow(2.0)
+                if isinstance(proj.target, Ancelotti):
+                    # Stun (15%) e possível invocação de Labubu MUI (20%),
+                    # encapsulados no boss. Sem dano duplicado (receber_dano já
+                    # aplica o dano).
+                    if random.random() < proj.target.stun_chance:
+                        proj.target.apply_stun(1.5)
+                    mui = proj.target.receber_dano(
+                        proj.damage, state.wave, assets, waypoints
+                    )
+                    if mui is not None:
+                        state.enemies.append(mui)
+                else:
+                    proj.target.hp -= proj.damage
+                    if proj.apply_slow:
+                        proj.target.apply_slow(2.0)
             state.projectiles.remove(proj)
 
     # 3. Inimigos: fim do path tira vida; mortos dão moedas + flash.
@@ -792,7 +927,7 @@ def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict]) -> None:
             )
 
         if reached_end:
-            state.lives -= 1
+            state.lives -= enemy.damage_to_base
             state.enemies.remove(enemy)
             state.projectiles = [p for p in state.projectiles if p.target is not enemy]
         elif enemy.is_dead():
@@ -853,29 +988,29 @@ def _desenhar_mundo(tela, game_map, state, fonte_dev, dev, grid):
             f"Inimigos: {len(state.enemies)} | Torres: {len(state.towers)} "
             f"| Projéteis: {len(state.projectiles)}",
             True,
-            (80, 220, 230),
+            COR_CIANO,
         )
         tela.blit(contador, (MAP_RECT.x + 8, MAP_RECT.y + 34))
 
 
-def _desenhar_preview(tela, state) -> None:
-    """Círculo de alcance da torre selecionada, centrado no cursor.
+def _desenhar_preview(tela, state, grid, preview_surf: pygame.Surface) -> None:
+    """Círculo de range da torre selecionada, centrado no cursor.
 
-    A área livre/bloqueada é mostrada pelos overlays globais (verde em toda a
-    MAP_RECT + trilha vermelha) no bloco de render; aqui NÃO se desenha mais o
-    quadrado de célula individual sob o cursor (era ruído visual — BUG 7).
+    Verde se a posição está livre para posicionamento; vermelho se bloqueada
+    (PATH ou OCCUPIED). Surface reutilizada — limpa antes de desenhar.
     """
     mx, my = to_render(pygame.mouse.get_pos())
     if not MAP_RECT.collidepoint(mx, my):
         return
 
     tipo_sel = TOWER_TYPES[state.selected_card]
-    # Círculo de alcance centrado no cursor. Alcance "simbólico" (ex.: Speed7,
-    # habilidade global) não desenha círculo — seria a tela inteira.
+    # Alcance "simbólico" (ex.: Speed7, habilidade global) não desenha círculo.
     if tipo_sel.range_px <= max(WINDOW_WIDTH, WINDOW_HEIGHT):
-        preview = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        pygame.draw.circle(preview, (255, 255, 255, 60), (mx, my), tipo_sel.range_px)
-        tela.blit(preview, (0, 0))
+        placeable = grid.is_placeable(mx, my)
+        cor = (*COR_OVERLAY_VALIDO, ALPHA_OVERLAY_HOVER) if placeable else (*COR_OVERLAY_INVALIDO, ALPHA_OVERLAY_HOVER)
+        preview_surf.fill((0, 0, 0, 0))
+        pygame.draw.circle(preview_surf, cor, (mx, my), tipo_sel.range_px)
+        tela.blit(preview_surf, (0, 0))
 
 
 def _definir_cursor(cursor) -> None:

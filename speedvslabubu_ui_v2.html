@@ -1,0 +1,1940 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speed Vs Labubu Remake — UI Mockup</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Share+Tech+Mono&family=Barlow:wght@400;500;600&display=swap');
+
+  :root {
+    --verde-campo: #1e4010;
+    --verde-claro: #2e6018;
+    --verde-neon: #7fff3a;
+    --vermelho: #d42b1e;
+    --vermelho-path: #7a1010;
+    --dourado: #ffd040;
+    --dourado-escuro: #b87800;
+    --cinza-escuro: #0e0e0e;
+    --cinza-medio: #181818;
+    --cinza-claro: #252525;
+    --branco: #f0f0e8;
+    --ciano: #00ffcc;
+    --roxo: #c050ff;
+    --azul: #4ab0ff;
+    --laranja: #ff8c00;
+    --hud-bg: #0a0a0a;
+    --card-bg: #111108;
+    --card-border: #2a2a18;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #070a0e;
+    color: var(--branco);
+    font-family: 'Barlow', sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  /* NAV DE TELAS */
+  .nav-telas {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: #000;
+    border-bottom: 1px solid var(--dourado);
+    display: flex;
+    gap: 2px;
+    padding: 6px 8px;
+    z-index: 1000;
+    overflow-x: auto;
+  }
+  .nav-telas button {
+    background: #1a1a1a;
+    color: #aaa;
+    border: 1px solid #333;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    white-space: nowrap;
+    transition: all .15s;
+  }
+  .nav-telas button:hover { background: #2a2a2a; color: #fff; }
+  .nav-telas button.ativo { background: var(--dourado); color: #000; border-color: var(--dourado); }
+
+  /* WRAPPER DE TELAS */
+  .tela { display: none; padding-top: 42px; min-height: 100vh; }
+  .tela.visivel { display: block; }
+
+  /* ═══════════════════════════════════════════
+     TELA 1 — INTRO / DIÁLOGO
+  ═══════════════════════════════════════════ */
+  .intro-bg {
+    width: 100%; min-height: calc(100vh - 42px);
+    background: linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.7)),
+                url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%232d5a1b"/><rect x="15" y="35" width="70" height="30" fill="%23ffffff15"/></svg>') center/cover;
+    background-color: #1a3010;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 24px;
+    gap: 16px;
+    position: relative;
+  }
+
+  .intro-personagens {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 40px;
+    height: 280px;
+  }
+
+  .personagem-sprite {
+    width: 180px; height: 220px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    transition: opacity .3s;
+    position: relative;
+  }
+  .personagem-sprite.escurecido { opacity: .35; filter: grayscale(.6); }
+  .personagem-sprite.falando { opacity: 1; box-shadow: 0 0 0 3px var(--dourado); }
+
+  .sprite-ancelotti {
+    background: linear-gradient(135deg, #1a0a0a, #3d0f0f);
+    border: 2px solid #8b1a1a;
+  }
+  .sprite-speed {
+    background: linear-gradient(135deg, #0a1a2a, #0f3d6e);
+    border: 2px solid #1a6eb5;
+  }
+  .sprite-labubu {
+    background: linear-gradient(135deg, #1a0a2a, #4a1a6e);
+    border: 2px solid #7a3ab5;
+  }
+
+  .nome-personagem {
+    position: absolute;
+    bottom: -24px; left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Oswald', sans-serif;
+    font-size: 13px;
+    white-space: nowrap;
+    letter-spacing: .05em;
+  }
+  .nome-speed { color: var(--azul); }
+  .nome-ancelotti { color: var(--vermelho); }
+  .nome-labubu { color: var(--roxo); }
+
+  .dialogo-box {
+    background: #0d1117ee;
+    border: 2px solid var(--branco);
+    border-radius: 4px;
+    padding: 20px 24px;
+    position: relative;
+  }
+  .dialogo-nome {
+    font-family: 'Oswald', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    letter-spacing: .05em;
+  }
+  .dialogo-texto {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    color: #ddd;
+    min-height: 48px;
+  }
+  .dialogo-cursor {
+    display: inline-block;
+    width: 10px; height: 15px;
+    background: var(--branco);
+    animation: piscar 1s infinite;
+    vertical-align: middle;
+    margin-left: 3px;
+  }
+  .dialogo-instrucoes {
+    position: absolute;
+    bottom: 10px; right: 16px;
+    font-size: 11px;
+    color: #666;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  /* ═══════════════════════════════════════════
+     TELA 2 — MENU PRINCIPAL
+  ═══════════════════════════════════════════ */
+  .menu-bg {
+    min-height: calc(100vh - 42px);
+    background:
+      linear-gradient(180deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.55) 40%, rgba(0,0,0,.85) 100%),
+      linear-gradient(160deg, #0f2008 0%, #1a3010 50%, #0a1008 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .menu-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent calc(100% / 11 - 1px),
+      rgba(255,255,255,.07) calc(100% / 11 - 1px),
+      rgba(255,255,255,.07) calc(100% / 11)
+    );
+  }
+  .menu-bg::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    top: 50%; bottom: 0;
+    background: linear-gradient(0deg, rgba(255,208,64,.06) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .menu-conteudo {
+    text-align: center;
+    z-index: 1;
+    position: relative;
+  }
+
+  .menu-titulo {
+    font-family: 'Oswald', sans-serif;
+    font-size: 72px;
+    font-weight: 700;
+    line-height: .95;
+    letter-spacing: -.01em;
+    text-transform: uppercase;
+    color: var(--dourado);
+    text-shadow:
+      0 0 60px rgba(255,208,64,.35),
+      4px 4px 0 #3a2000,
+      8px 8px 0 rgba(0,0,0,.5);
+    margin-bottom: 6px;
+  }
+  .menu-subtitulo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: rgba(255,255,255,.25);
+    letter-spacing: .35em;
+    text-transform: uppercase;
+    margin-bottom: 52px;
+  }
+
+  .menu-botoes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+
+  .btn-menu {
+    width: 260px;
+    padding: 13px 0;
+    font-family: 'Oswald', sans-serif;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    transition: all .12s;
+    position: relative;
+  }
+  .btn-menu-primario {
+    background: var(--dourado);
+    color: #0a0800;
+    clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+    box-shadow: 0 4px 20px rgba(255,208,64,.35);
+  }
+  .btn-menu-primario:hover {
+    background: #fff;
+    box-shadow: 0 4px 30px rgba(255,255,255,.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-menu-secundario {
+    background: rgba(255,255,255,.04);
+    color: rgba(255,255,255,.65);
+    border: 1px solid rgba(255,255,255,.12);
+    clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+  }
+  .btn-menu-secundario:hover {
+    background: rgba(255,208,64,.08);
+    border-color: rgba(255,208,64,.4);
+    color: var(--dourado);
+  }
+
+  .btn-menu-breve {
+    background: transparent;
+    color: rgba(255,255,255,.2);
+    border: 1px solid rgba(255,255,255,.06);
+    clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+  }
+  .btn-menu-breve::after {
+    content: ' — em breve';
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: .05em;
+    opacity: .6;
+  }
+
+  .menu-versao {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #444;
+    margin-top: 24px;
+  }
+
+  .btn-log-fixo {
+    position: absolute;
+    top: 8px; right: 12px;
+    background: transparent;
+    border: 1px solid #333;
+    color: #555;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+  .btn-log-fixo:hover { border-color: var(--dourado); color: var(--dourado); }
+
+  .btn-atualizar-pequeno {
+    background: transparent;
+    border: 1px solid #333;
+    color: #555;
+    font-family: 'Oswald', sans-serif;
+    font-size: 13px;
+    padding: 6px 14px;
+    cursor: pointer;
+    letter-spacing: .05em;
+    margin-top: 8px;
+  }
+  .btn-atualizar-pequeno:hover { border-color: var(--ciano); color: var(--ciano); }
+
+  /* ═══════════════════════════════════════════
+     TELA 3 — SELEÇÃO DE DIFICULDADE
+  ═══════════════════════════════════════════ */
+  .dificuldade-bg {
+    min-height: calc(100vh - 42px);
+    background:
+      linear-gradient(rgba(0,0,0,.88), rgba(0,0,0,.88)),
+      linear-gradient(160deg, #0f2008, #0a0a06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dificuldade-painel {
+    width: 560px;
+    text-align: center;
+  }
+
+  .dificuldade-titulo {
+    font-family: 'Oswald', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.7);
+    margin-bottom: 32px;
+  }
+
+  .dificuldade-opcoes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .dificuldade-card {
+    border: 1px solid #252200;
+    background: #0a0a06;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all .12s;
+    text-align: left;
+  }
+  .dificuldade-card:hover { border-color: #3a3800; background: #0f0f06; }
+  .dificuldade-card.selecionado { border-color: var(--dourado); background: #0f0e04; box-shadow: inset 0 0 0 1px rgba(255,208,64,.1); }
+
+  .dif-icone {
+    font-size: 32px;
+    width: 48px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .dif-info { flex: 1; }
+  .dif-nome {
+    font-family: 'Oswald', sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .dif-facil .dif-nome { color: var(--verde-neon); }
+  .dif-normal .dif-nome { color: var(--dourado); }
+  .dif-dificil .dif-nome { color: var(--vermelho); }
+
+  .dif-desc { color: #666; font-size: 13px; }
+
+  .dif-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #555;
+    text-align: right;
+  }
+
+  /* ═══════════════════════════════════════════
+     TELA 4 — JOGO (campo + HUD)
+  ═══════════════════════════════════════════ */
+  .jogo-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 42px);
+    background: #0a0f0a;
+  }
+
+  /* BARRA SUPERIOR */
+  .hud-topo {
+    height: 32px;
+    background: #050505;
+    border-bottom: 1px solid #1a1800;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+
+  .hud-stat {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .hud-stat-label { color: #555; font-size: 11px; }
+  .hud-stat-valor { color: var(--branco); font-weight: 600; }
+  .hud-stat-valor.dourado { color: var(--dourado); }
+  .hud-stat-valor.ciano { color: var(--ciano); }
+  .hud-stat-valor.verde { color: var(--verde-neon); }
+  .hud-stat-valor.vermelho { color: #e74c3c; }
+
+  .hud-topo-direita {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-hud {
+    background: #111108;
+    border: 1px solid #2a2800;
+    color: #666640;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: all .12s;
+    letter-spacing: .05em;
+  }
+  .btn-hud:hover { border-color: var(--dourado); color: var(--dourado); background: #1a1800; }
+  .btn-hud.ativo { background: var(--dourado); color: #0a0800; border-color: var(--dourado); font-weight: 700; }
+  .btn-hud.skip { border-color: var(--verde-neon); color: var(--verde-neon); }
+  .btn-hud.skip:hover { background: var(--verde-neon); color: #050a00; }
+
+  .boss-alerta {
+    color: #e74c3c;
+    font-family: 'Oswald', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    animation: piscar 0.8s infinite;
+  }
+
+  /* CAMPO DE JOGO */
+  .campo-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--verde-campo);
+  }
+
+  /* LINHAS DO CAMPO */
+  .campo-linhas {
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(90deg, transparent, transparent 77px, rgba(255,255,255,.12) 77px, rgba(255,255,255,.12) 79px),
+      linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06));
+  }
+  .campo-texto-miami {
+    position: absolute;
+    top: 50%; left: 10%;
+    transform: translateY(-50%) rotate(-90deg);
+    font-family: 'Oswald', sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: rgba(255,255,255,.12);
+    letter-spacing: .2em;
+    user-select: none;
+  }
+
+  /* PATH DOS INIMIGOS */
+  .path-container {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .path-svg {
+    width: 100%; height: 100%;
+    opacity: .7;
+  }
+
+  /* TORRES NO MAPA */
+  .torre-no-mapa {
+    position: absolute;
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    border: 2px solid rgba(255,255,255,.3);
+    cursor: pointer;
+    transition: transform .1s;
+    transform: translate(-50%, -50%);
+  }
+  .torre-no-mapa:hover { transform: translate(-50%, -50%) scale(1.1); }
+  .torre-t1 { background: radial-gradient(circle, #1a4a6e, #0d2740); border-color: #3498db; }
+  .torre-t3 { background: radial-gradient(circle, #4a1a1a, #2d0d0d); border-color: #e74c3c; }
+  .torre-t4 { background: radial-gradient(circle, #2a4a1a, #152a0d); border-color: #27ae60; }
+
+  /* RANGE PREVIEW */
+  .range-preview {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px dashed rgba(255,255,255,.25);
+    background: rgba(255,255,255,.04);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+  }
+
+  /* INIMIGOS */
+  .inimigo {
+    position: absolute;
+    width: 36px; height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .inimigo-hp {
+    position: absolute;
+    bottom: -8px; left: 50%;
+    transform: translateX(-50%);
+    width: 32px; height: 4px;
+    background: #333;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .inimigo-hp-fill {
+    height: 100%;
+    background: var(--verde-neon);
+    border-radius: 2px;
+  }
+
+  /* OVERLAY DE POSICIONAMENTO */
+  .overlay-verde {
+    position: absolute;
+    inset: 0;
+    background: rgba(50, 200, 50, .12);
+    pointer-events: none;
+  }
+
+  /* ═══════════════════════════════════════════
+     HUD INFERIOR — CARTAS
+  ═══════════════════════════════════════════ */
+  .hud-inferior {
+    height: 108px;
+    background: #080808;
+    border-top: 2px solid #1a1a00;
+    box-shadow: 0 -4px 20px rgba(0,0,0,.8);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .hud-vidas {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 52px;
+  }
+  .vidas-icone { font-size: 22px; }
+  .vidas-numero {
+    font-family: 'Oswald', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: #e74c3c;
+  }
+  .vidas-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #555;
+  }
+
+  .hud-divisor {
+    width: 1px;
+    height: 70px;
+    background: #1e2229;
+    flex-shrink: 0;
+  }
+
+  /* CARTAS */
+  .cartas-container {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .carta {
+    width: 148px;
+    height: 92px;
+    background: linear-gradient(135deg, #0f0f06 60%, #1a1a08);
+    border: 1px solid #2a2a10;
+    border-top: 2px solid #3a3a18;
+    border-radius: 3px;
+    padding: 7px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    cursor: pointer;
+    transition: all .12s;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .carta::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 3px;
+    background: linear-gradient(135deg, rgba(255,208,64,.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .carta:hover {
+    border-color: rgba(255,208,64,.35);
+    border-top-color: rgba(255,208,64,.6);
+    background: linear-gradient(135deg, #151208 60%, #201e08);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,.5);
+  }
+  .carta.selecionada {
+    border-color: var(--dourado);
+    border-top-color: #fff;
+    background: linear-gradient(135deg, #181400 60%, #252000);
+    box-shadow: 0 0 0 1px var(--dourado), 0 4px 16px rgba(255,208,64,.2);
+    transform: translateY(-2px);
+  }
+  .carta.bloqueada { opacity: .35; cursor: not-allowed; filter: grayscale(.5); }
+  .carta.buff-ativo {
+    border-color: var(--laranja);
+    border-top-color: #ffcc00;
+    background: linear-gradient(135deg, #160c00 60%, #201200);
+    box-shadow: 0 0 0 1px rgba(255,140,0,.4);
+  }
+
+  .carta-topo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .carta-sprite {
+    width: 28px; height: 28px;
+    background: #0d1117;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .carta-nome {
+    font-family: 'Oswald', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--branco);
+    line-height: 1.2;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .carta-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #666;
+  }
+  .carta-stats span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .carta-desc {
+    font-size: 10px;
+    color: #4a9eff;
+    font-family: 'Share Tech Mono', monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .carta-rodape {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+  }
+
+  .carta-slots {
+    display: flex;
+    gap: 2px;
+  }
+  .slot {
+    width: 8px; height: 8px;
+    border-radius: 1px;
+    background: #222;
+    border: 1px solid #333;
+  }
+  .slot.usado { background: var(--dourado); border-color: var(--dourado-escuro); }
+
+  .carta-custo {
+    font-family: 'Oswald', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--dourado);
+  }
+
+  /* Indicadores especiais */
+  .carta-badge {
+    position: absolute;
+    top: 5px; right: 5px;
+    font-size: 9px;
+    font-family: 'Share Tech Mono', monospace;
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+  .badge-skill { background: var(--roxo); color: #fff; }
+  .badge-buff { background: var(--laranja); color: #fff; }
+  .badge-cooldown { background: #333; color: #666; }
+
+  /* Cooldown overlay */
+  .cooldown-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: #111;
+    border-radius: 0 0 3px 3px;
+    overflow: hidden;
+  }
+  .cooldown-fill {
+    height: 100%;
+    background: var(--laranja);
+    transition: width .1s;
+  }
+
+  /* ═══════════════════════════════════════════
+     TELA 5 — LEADERBOARD
+  ═══════════════════════════════════════════ */
+  .overlay-modal {
+    min-height: calc(100vh - 42px);
+    background: rgba(0,0,0,.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .modal-painel {
+    background: #0a0a06;
+    border: 1px solid #2a2800;
+    border-top: 3px solid var(--dourado);
+    width: 100%;
+    max-width: 680px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,208,64,.1);
+  }
+
+  .modal-header {
+    border-bottom: 1px solid #1a1800;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(90deg, rgba(255,208,64,.04) 0%, transparent 100%);
+  }
+
+  .modal-titulo {
+    font-family: 'Oswald', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--dourado);
+    text-shadow: 0 0 20px rgba(255,208,64,.3);
+  }
+
+  .btn-fechar {
+    background: transparent;
+    border: 1px solid #333;
+    color: #666;
+    width: 28px; height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    transition: all .15s;
+  }
+  .btn-fechar:hover { border-color: var(--vermelho); color: var(--vermelho); }
+
+  .leaderboard-tabela {
+    padding: 8px 0;
+  }
+
+  .lb-header, .lb-linha {
+    display: grid;
+    grid-template-columns: 40px 1fr 120px 120px;
+    padding: 10px 20px;
+    align-items: center;
+  }
+
+  .lb-header {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #444430;
+    border-bottom: 1px solid #1a1800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .lb-linha {
+    border-bottom: 1px solid #0d0d06;
+    transition: background .1s;
+  }
+  .lb-linha:hover { background: #0f0f06; }
+
+  .lb-pos {
+    font-family: 'Oswald', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .pos-1 { color: var(--dourado); }
+  .pos-2 { color: #c0c0c0; }
+  .pos-3 { color: #cd7f32; }
+  .pos-outros { color: #444; font-size: 14px; }
+
+  .lb-nome {
+    font-family: 'Oswald', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .lb-linha:nth-child(1) .lb-nome { color: var(--dourado); }
+  .lb-linha:nth-child(2) .lb-nome { color: #c0c0c0; }
+  .lb-linha:nth-child(3) .lb-nome { color: #cd7f32; }
+
+  .lb-tempo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ciano);
+  }
+
+  .lb-data {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: #444;
+    text-align: right;
+  }
+
+  .lb-vazio {
+    padding: 40px;
+    text-align: center;
+    color: #444;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+  }
+
+  /* ═══════════════════════════════════════════
+     TELA 6 — CONFIGURAÇÕES
+  ═══════════════════════════════════════════ */
+  .config-conteudo { padding: 24px 20px; }
+
+  .config-secao {
+    margin-bottom: 24px;
+  }
+  .config-label {
+    font-family: 'Oswald', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    color: #888;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .slider-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .slider-trilha {
+    flex: 1;
+    height: 6px;
+    background: #1e2229;
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+  }
+  .slider-fill {
+    height: 100%;
+    background: var(--dourado);
+    border-radius: 3px;
+    width: 70%;
+  }
+  .slider-handle {
+    position: absolute;
+    top: 50%; right: 30%;
+    transform: translate(50%, -50%);
+    width: 16px; height: 16px;
+    background: var(--dourado);
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(240,192,64,.25);
+    cursor: grab;
+  }
+  .slider-valor {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--dourado);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* ═══════════════════════════════════════════
+     TELA 7 — CONQUISTAS
+  ═══════════════════════════════════════════ */
+  .conquistas-grid {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .conquista-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: #0a0a06;
+    border: 1px solid #1a1800;
+    border-radius: 2px;
+  }
+  .conquista-card.desbloqueada { border-color: var(--dourado-escuro); background: #0e0d04; box-shadow: inset 0 0 0 1px rgba(255,208,64,.06); }
+  .conquista-card.bloqueada { opacity: .4; }
+
+  .conquista-icone {
+    font-size: 32px;
+    width: 48px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .conquista-icone-lock {
+    font-size: 28px;
+    opacity: .3;
+  }
+
+  .conquista-info { flex: 1; }
+  .conquista-nome {
+    font-family: 'Oswald', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--dourado);
+    margin-bottom: 4px;
+  }
+  .conquista-card.bloqueada .conquista-nome { color: #444; }
+  .conquista-desc { color: #666; font-size: 13px; }
+
+  .conquista-modo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 2px;
+  }
+  .modo-facil { background: rgba(76,255,114,.15); color: var(--verde-neon); }
+  .modo-normal { background: rgba(240,192,64,.15); color: var(--dourado); }
+  .modo-dificil { background: rgba(192,57,43,.15); color: #e74c3c; }
+
+  /* ═══════════════════════════════════════════
+     TELA 8 — CHANGELOG
+  ═══════════════════════════════════════════ */
+  .changelog-conteudo { padding: 16px 20px; }
+
+  .changelog-versao {
+    font-family: 'Oswald', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--dourado);
+    margin-bottom: 4px;
+  }
+
+  .changelog-data {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #444;
+    margin-bottom: 20px;
+  }
+
+  .changelog-secao { margin-bottom: 18px; }
+  .changelog-secao-titulo {
+    font-family: 'Oswald', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #666;
+    border-bottom: 1px solid #1e2229;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+  }
+
+  .changelog-item {
+    display: flex;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 13px;
+    color: #aaa;
+    border-bottom: 1px solid #0d1117;
+  }
+  .changelog-item::before {
+    content: '—';
+    color: #333;
+    flex-shrink: 0;
+  }
+
+  /* ═══════════════════════════════════════════
+     TELA 9 — PAUSE
+  ═══════════════════════════════════════════ */
+  .pause-overlay {
+    min-height: calc(100vh - 42px);
+    background: rgba(0,0,0,.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+
+  .pause-painel {
+    background: #080806;
+    border: 1px solid #252200;
+    border-top: 3px solid rgba(255,208,64,.6);
+    padding: 32px 40px;
+    text-align: center;
+    min-width: 300px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.8);
+  }
+
+  .pause-titulo {
+    font-family: 'Oswald', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    color: var(--branco);
+    margin-bottom: 8px;
+  }
+  .pause-subtitulo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: #444;
+    margin-bottom: 28px;
+  }
+
+  .pause-botoes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* ═══════════════════════════════════════════
+     TELA 10 — VITÓRIA
+  ═══════════════════════════════════════════ */
+  .vitoria-bg {
+    min-height: calc(100vh - 42px);
+    background:
+      linear-gradient(135deg, rgba(0,0,0,.9) 0%, rgba(0,0,0,.75) 50%, rgba(0,0,0,.9) 100%),
+      linear-gradient(135deg, #081408 0%, #0f200a 50%, #080a04 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .vitoria-painel {
+    background: #080806;
+    border: 1px solid #252200;
+    border-top: 3px solid var(--dourado);
+    padding: 32px 40px;
+    text-align: center;
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,208,64,.08);
+  }
+
+  .vitoria-titulo {
+    font-family: 'Oswald', sans-serif;
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--dourado);
+    text-shadow: 0 0 30px rgba(240,192,64,.4);
+    letter-spacing: .05em;
+    margin-bottom: 6px;
+  }
+
+  .vitoria-modo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: #555;
+    margin-bottom: 28px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+  }
+
+  .vitoria-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: #1a1800;
+    margin-bottom: 20px;
+    border: 1px solid #1a1800;
+  }
+  .vitoria-stat {
+    background: #0a0a06;
+    padding: 14px;
+    text-align: center;
+  }
+  .vitoria-stat-valor {
+    font-family: 'Oswald', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .vitoria-stat-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #444430;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+
+  .conquista-banner {
+    background: rgba(240,192,64,.1);
+    border: 1px solid var(--dourado-escuro);
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .conquista-banner-icone { font-size: 28px; }
+  .conquista-banner-info {}
+  .conquista-banner-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--dourado-escuro);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-bottom: 3px;
+  }
+  .conquista-banner-nome {
+    font-family: 'Oswald', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--dourado);
+  }
+
+  .vitoria-pos {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: var(--ciano);
+    margin-bottom: 20px;
+  }
+
+  /* BOTÕES GERAIS */
+  .btn-primario {
+    background: var(--dourado);
+    color: #0a0800;
+    border: none;
+    padding: 12px 24px;
+    font-family: 'Oswald', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    width: 100%;
+    transition: all .12s;
+    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+    box-shadow: 0 4px 16px rgba(255,208,64,.25);
+  }
+  .btn-primario:hover {
+    background: #fff;
+    box-shadow: 0 4px 20px rgba(255,255,255,.3);
+    transform: translateY(-1px);
+  }
+
+  .btn-secundario {
+    background: transparent;
+    color: rgba(255,255,255,.35);
+    border: 1px solid rgba(255,255,255,.1);
+    padding: 10px 24px;
+    font-family: 'Oswald', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    width: 100%;
+    transition: all .12s;
+    margin-top: 6px;
+    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  }
+  .btn-secundario:hover { border-color: rgba(255,255,255,.3); color: rgba(255,255,255,.8); }
+
+  /* GAME OVER */
+  .gameover-titulo {
+    font-family: 'Oswald', sans-serif;
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--vermelho);
+    text-shadow: 0 0 30px rgba(192,57,43,.5);
+    letter-spacing: .05em;
+    margin-bottom: 6px;
+  }
+
+  /* TOOLTIP */
+  .tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 180px;
+    background: #0d1117;
+    border: 1px solid var(--dourado);
+    padding: 10px 12px;
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+  }
+  .carta:hover .tooltip { display: block; }
+  .tooltip-nome {
+    font-family: 'Oswald', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--dourado);
+    margin-bottom: 6px;
+  }
+  .tooltip-stat {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    padding: 2px 0;
+    border-bottom: 1px solid #0d1117;
+  }
+  .tooltip-stat span:last-child { color: var(--branco); }
+
+  /* ANIMAÇÕES */
+  @keyframes piscar {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #0d1117; }
+  ::-webkit-scrollbar-thumb { background: #30363d; }
+</style>
+</head>
+<body>
+
+<!-- NAV DE TELAS -->
+<nav class="nav-telas">
+  <button class="ativo" onclick="mostrar('intro')">Intro / Diálogo</button>
+  <button onclick="mostrar('menu')">Menu Principal</button>
+  <button onclick="mostrar('dificuldade')">Dificuldade</button>
+  <button onclick="mostrar('jogo')">Jogo</button>
+  <button onclick="mostrar('leaderboard')">Leaderboard</button>
+  <button onclick="mostrar('config')">Configurações</button>
+  <button onclick="mostrar('conquistas')">Conquistas</button>
+  <button onclick="mostrar('changelog')">Changelog</button>
+  <button onclick="mostrar('pause')">Pause</button>
+  <button onclick="mostrar('vitoria')">Vitória</button>
+  <button onclick="mostrar('gameover')">Game Over</button>
+</nav>
+
+<!-- ═══ TELA 1: INTRO ═══ -->
+<div class="tela visivel" id="tela-intro">
+  <div class="intro-bg">
+    <div class="intro-personagens">
+      <div class="personagem-sprite sprite-ancelotti escurecido">
+        👔
+        <span class="nome-personagem nome-ancelotti">Ancelotti</span>
+      </div>
+      <div class="personagem-sprite sprite-speed falando">
+        🏃
+        <span class="nome-personagem nome-speed">IShowSpeed</span>
+      </div>
+    </div>
+
+    <div class="dialogo-box">
+      <div class="dialogo-nome" style="color:#4a9eff">IShowSpeed</div>
+      <div class="dialogo-texto">
+        [FALA DO SPEED 1]<span class="dialogo-cursor"></span>
+      </div>
+      <div class="dialogo-instrucoes">ENTER: próximo &nbsp;|&nbsp; ESC: pular</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TELA 2: MENU ═══ -->
+<div class="tela" id="tela-menu">
+  <div class="menu-bg">
+    <button class="btn-log-fixo">[ LOG ]</button>
+
+    <div class="menu-conteudo">
+      <div class="menu-titulo">Speed vs<br>Labubu</div>
+      <div class="menu-subtitulo">REMAKE &nbsp;·&nbsp; v1.2.1</div>
+
+      <div class="menu-botoes">
+        <button class="btn-menu btn-menu-primario">Jogar</button>
+        <button class="btn-menu btn-menu-secundario">Leaderboard</button>
+        <button class="btn-menu btn-menu-secundario">Conquistas</button>
+        <button class="btn-menu btn-menu-secundario">Configurações</button>
+        <button class="btn-menu btn-menu-breve">Multijogador</button>
+        <button class="btn-menu btn-menu-secundario" style="color:#c0392b;border-color:#2a1010">Sair</button>
+      </div>
+
+      <button class="btn-atualizar-pequeno">🔄 Verificar Atualização</button>
+
+      <div class="menu-versao">build 2026.06 &nbsp;·&nbsp; Hard Rock Stadium</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TELA 3: DIFICULDADE ═══ -->
+<div class="tela" id="tela-dificuldade">
+  <div class="dificuldade-bg">
+    <div class="dificuldade-painel">
+      <div class="dificuldade-titulo">Selecione a Dificuldade</div>
+
+      <div class="dificuldade-opcoes">
+        <div class="dificuldade-card dif-facil">
+          <div class="dif-icone">🟢</div>
+          <div class="dif-info">
+            <div class="dif-nome">Fácil</div>
+            <div class="dif-desc">Para quem está conhecendo o jogo</div>
+          </div>
+          <div class="dif-stats">
+            <span>HP ×0.7</span>
+            <span>Vel ×0.8</span>
+            <span>💰 ×1.3</span>
+            <span>❤️ 15</span>
+          </div>
+        </div>
+
+        <div class="dificuldade-card dif-normal selecionado">
+          <div class="dif-icone">🟡</div>
+          <div class="dif-info">
+            <div class="dif-nome">Normal</div>
+            <div class="dif-desc">A experiência balanceada</div>
+          </div>
+          <div class="dif-stats">
+            <span>HP ×1.0</span>
+            <span>Vel ×1.0</span>
+            <span>💰 ×1.0</span>
+            <span>❤️ 10</span>
+          </div>
+        </div>
+
+        <div class="dificuldade-card dif-dificil">
+          <div class="dif-icone">🔴</div>
+          <div class="dif-info">
+            <div class="dif-nome">Difícil</div>
+            <div class="dif-desc">Para quem domina o jogo</div>
+          </div>
+          <div class="dif-stats">
+            <span>HP ×1.5</span>
+            <span>Vel ×1.2</span>
+            <span>💰 ×0.7</span>
+            <span>❤️ 6</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-primario">Começar</button>
+      <button class="btn-secundario">Voltar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TELA 4: JOGO ═══ -->
+<div class="tela" id="tela-jogo">
+  <div class="jogo-wrapper">
+
+    <!-- BARRA SUPERIOR -->
+    <div class="hud-topo">
+      <div class="hud-stat">
+        <span class="hud-stat-label">$</span>
+        <span class="hud-stat-valor dourado">400</span>
+      </div>
+      <div class="hud-stat">
+        <span class="hud-stat-label">Mortes</span>
+        <span class="hud-stat-valor">24</span>
+      </div>
+      <div class="hud-stat">
+        <span class="hud-stat-label">Onda</span>
+        <span class="hud-stat-valor">7<span style="color:#444">/15</span></span>
+      </div>
+      <div class="hud-stat">
+        <span class="hud-stat-valor ciano">04:12</span>
+      </div>
+
+      <div class="hud-topo-direita">
+        <button class="btn-hud skip">⏩ SKIP +$38</button>
+        <button class="btn-hud">AUTO</button>
+        <button class="btn-hud ativo">2×</button>
+        <button class="btn-hud">LOG</button>
+      </div>
+    </div>
+
+    <!-- CAMPO -->
+    <div class="campo-wrapper">
+      <div class="campo-linhas"></div>
+      <div class="campo-texto-miami">MIAMI</div>
+
+      <!-- PATH DOS INIMIGOS (SVG) -->
+      <svg class="path-svg" style="position:absolute;inset:0" viewBox="0 0 1280 590" preserveAspectRatio="none">
+        <defs>
+          <marker id="seta" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="rgba(180,30,30,.8)"/>
+          </marker>
+        </defs>
+        <polyline
+          points="60,295 60,80 320,80 320,510 640,510 640,80 900,80 900,510 1150,510 1150,295"
+          fill="none"
+          stroke="rgba(180,30,30,.75)"
+          stroke-width="28"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+        />
+        <polyline
+          points="60,295 60,80 320,80 320,510 640,510 640,80 900,80 900,510 1150,510 1150,295"
+          fill="none"
+          stroke="rgba(220,60,60,.4)"
+          stroke-width="32"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+          stroke-dasharray="1 31"
+        />
+      </svg>
+
+      <!-- TORRES -->
+      <div class="torre-no-mapa torre-t1" style="left:200px;top:200px">🏃
+        <div class="range-preview" style="width:240px;height:240px;left:50%;top:50%"></div>
+      </div>
+      <div class="torre-no-mapa torre-t3" style="left:480px;top:300px">🔥</div>
+      <div class="torre-no-mapa torre-t4" style="left:760px;top:180px">💤</div>
+
+      <!-- INIMIGOS -->
+      <div class="inimigo" style="left:60px;top:200px">
+        🐻
+        <div class="inimigo-hp"><div class="inimigo-hp-fill" style="width:70%"></div></div>
+      </div>
+      <div class="inimigo" style="left:60px;top:140px">
+        🐻
+        <div class="inimigo-hp"><div class="inimigo-hp-fill" style="width:100%"></div></div>
+      </div>
+      <div class="inimigo" style="left:180px;top:80px">
+        🐻
+        <div class="inimigo-hp"><div class="inimigo-hp-fill" style="width:45%;background:#e74c3c"></div></div>
+      </div>
+
+      <!-- OVERLAY DE POSICIONAMENTO (visível ao selecionar carta) -->
+      <div class="overlay-verde"></div>
+    </div>
+
+    <!-- HUD INFERIOR -->
+    <div class="hud-inferior">
+      <div class="hud-vidas">
+        <div class="vidas-icone">❤️</div>
+        <div class="vidas-numero">8</div>
+        <div class="vidas-label">vidas</div>
+      </div>
+
+      <div class="hud-divisor"></div>
+
+      <div class="cartas-container">
+
+        <!-- Carta 1: Shake It Speed -->
+        <div class="carta selecionada">
+          <div class="carta-topo">
+            <div class="carta-sprite">🏃</div>
+            <div class="carta-nome">Shake It Speed</div>
+          </div>
+          <div class="carta-stats">
+            <span>DMG 8</span>
+            <span>Alc 120px</span>
+            <span>Cad 2.1/s</span>
+            <span>Cst $50</span>
+          </div>
+          <div class="carta-desc">Cadência alta. Fraco contra tanques.</div>
+          <div class="carta-rodape">
+            <div class="carta-slots">
+              <div class="slot usado"></div>
+              <div class="slot usado"></div>
+              <div class="slot usado"></div>
+              <div class="slot"></div>
+            </div>
+            <div class="carta-custo">$50</div>
+          </div>
+          <div class="tooltip">
+            <div class="tooltip-nome">Shake It Speed</div>
+            <div class="tooltip-stat"><span>Dano</span><span>8</span></div>
+            <div class="tooltip-stat"><span>Alcance</span><span>120px</span></div>
+            <div class="tooltip-stat"><span>Cadência</span><span>2.1/s</span></div>
+            <div class="tooltip-stat"><span>Custo</span><span>$50</span></div>
+            <div class="tooltip-stat"><span>Limit</span><span>3/4</span></div>
+          </div>
+        </div>
+
+        <!-- Carta 2: Suprised Speed -->
+        <div class="carta">
+          <div class="carta-topo">
+            <div class="carta-sprite">😮</div>
+            <div class="carta-nome">Suprised Speed</div>
+          </div>
+          <div class="carta-stats">
+            <span>DMG 11</span>
+            <span>Alc 220px</span>
+            <span>Cad 1.1/s</span>
+            <span>Cst $75</span>
+          </div>
+          <div class="carta-desc">Alcance amplo. Cadência lenta.</div>
+          <div class="carta-rodape">
+            <div class="carta-slots">
+              <div class="slot usado"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+            </div>
+            <div class="carta-custo">$75</div>
+          </div>
+        </div>
+
+        <!-- Carta 3: SayWallahi Speed -->
+        <div class="carta">
+          <div class="carta-topo">
+            <div class="carta-sprite">💥</div>
+            <div class="carta-nome">SayWallahi Speed</div>
+          </div>
+          <div class="carta-stats">
+            <span>DMG 47</span>
+            <span>Alc 90px</span>
+            <span>Cad 0.4/s</span>
+            <span>Cst $110</span>
+          </div>
+          <div class="carta-desc">Dano massivo. Alcance curto e lento.</div>
+          <div class="carta-rodape">
+            <div class="carta-slots">
+              <div class="slot usado"></div>
+              <div class="slot usado"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+            </div>
+            <div class="carta-custo">$110</div>
+          </div>
+        </div>
+
+        <!-- Carta 4: KindaHomeless Speed -->
+        <div class="carta bloqueada">
+          <div class="carta-topo">
+            <div class="carta-sprite">💤</div>
+            <div class="carta-nome">KindaHomeless Speed</div>
+          </div>
+          <div class="carta-stats">
+            <span>DMG 6</span>
+            <span>Alc 160px</span>
+            <span>Cad 1.8/s</span>
+            <span>Cst $1500</span>
+          </div>
+          <div class="carta-desc">Aplica lentidão. Só 1 por vez.</div>
+          <div class="carta-rodape">
+            <div class="carta-slots">
+              <div class="slot usado"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+            </div>
+            <div class="carta-custo">$1500</div>
+          </div>
+        </div>
+
+        <!-- Carta 5: ShockedSpeed com buff ativo -->
+        <div class="carta buff-ativo">
+          <span class="carta-badge badge-buff">BUFF</span>
+          <div class="carta-topo">
+            <div class="carta-sprite">⚡</div>
+            <div class="carta-nome">ShockedSpeed</div>
+          </div>
+          <div class="carta-stats">
+            <span>DMG 36</span>
+            <span>Alc 150px</span>
+            <span>Cad 1.6/s</span>
+            <span>Cst $130</span>
+          </div>
+          <div class="carta-desc">Buff ativo! Dano ×2 por 3.2s</div>
+          <div class="carta-rodape">
+            <div class="carta-slots">
+              <div class="slot usado"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+            </div>
+            <div class="carta-custo">$130</div>
+          </div>
+          <div class="cooldown-bar"><div class="cooldown-fill" style="width:64%"></div></div>
+        </div>
+
+        <!-- Carta 6: KillThatBoy -->
+        <div class="carta">
+          <span class="carta-badge badge-skill">SKILL</span>
+          <div class="carta-topo">
+            <div class="carta-sprite">💀</div>
+            <div class="carta-nome">KillThatBoy</div>
+          </div>
+          <div class="carta-stats">
+            <span>DMG ∞</span>
+            <span>Alc Global</span>
+            <span>Uso único</span>
+            <span>Cst $350</span>
+          </div>
+          <div class="carta-desc">Hitkill global. Não vendável.</div>
+          <div class="carta-rodape">
+            <div class="carta-slots">
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+            </div>
+            <div class="carta-custo">$350</div>
+          </div>
+        </div>
+
+      </div><!-- fim cartas -->
+    </div><!-- fim hud-inferior -->
+  </div>
+</div>
+
+<!-- ═══ TELA 5: LEADERBOARD ═══ -->
+<div class="tela" id="tela-leaderboard">
+  <div class="overlay-modal">
+    <div class="modal-painel">
+      <div class="modal-header">
+        <div class="modal-titulo">🏆 Leaderboard Global</div>
+        <button class="btn-fechar">×</button>
+      </div>
+      <div class="leaderboard-tabela">
+        <div class="lb-header">
+          <span>#</span>
+          <span>Nome</span>
+          <span>Tempo</span>
+          <span style="text-align:right">Data</span>
+        </div>
+        <div class="lb-linha">
+          <span class="lb-pos pos-1">1</span>
+          <span class="lb-nome">AyatoTENSHI</span>
+          <span class="lb-tempo">01:10.0</span>
+          <span class="lb-data">23/06/2026</span>
+        </div>
+        <div class="lb-linha">
+          <span class="lb-pos pos-2">2</span>
+          <span class="lb-nome">Pream</span>
+          <span class="lb-tempo">04:47.2</span>
+          <span class="lb-data">23/06/2026</span>
+        </div>
+        <div class="lb-linha">
+          <span class="lb-pos pos-3">3</span>
+          <span class="lb-nome">SpeedFan99</span>
+          <span class="lb-tempo">07:22.8</span>
+          <span class="lb-data">22/06/2026</span>
+        </div>
+        <div class="lb-linha">
+          <span class="lb-pos pos-outros">4</span>
+          <span class="lb-nome" style="color:#aaa">Player123</span>
+          <span class="lb-tempo" style="font-size:15px">12:05.1</span>
+          <span class="lb-data">21/06/2026</span>
+        </div>
+        <div class="lb-vazio" style="padding:20px;border-top:1px solid #1e2229">
+          — 6 posições disponíveis —
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #1e2229">
+        <button class="btn-secundario">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TELA 6: CONFIGURAÇÕES ═══ -->
+<div class="tela" id="tela-config">
+  <div class="overlay-modal">
+    <div class="modal-painel" style="max-width:480px">
+      <div class="modal-header">
+        <div class="modal-titulo">Configurações</div>
+        <button class="btn-fechar">×</button>
+      </div>
+      <div class="config-conteudo">
+        <div class="config-secao">
+          <div class="config-label">Volume da Música</div>
+          <div class="slider-wrapper">
+            <div class="slider-trilha">
+              <div class="slider-fill" style="width:70%"></div>
+              <div class="slider-handle" style="right:30%"></div>
+            </div>
+            <div class="slider-valor">70%</div>
+          </div>
+        </div>
+        <div class="config-secao">
+          <div class="config-label">Versão</div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:13px;color:#555">v1.2.1 — build 2026.06</div>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #1e2229">
+        <button class="btn-secundario">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TELA 7: CONQUISTAS ═══ -->
+<div class="tela" id="tela-conquistas">
+  <div class="overlay-modal">
+    <div class="modal-painel">
+      <div class="modal-header">
+        <div class="modal-titulo">Conquistas</div>
+        <button class="btn-fechar">×</button>
+      </div>
+      <div class="conquistas-grid">
+        <div class="conquista-card desbloqueada">
+          <div class="conquista-icone">🥉</div>
+          <div class="conquista-info">
+            <div class="conquista-nome">Treino Completo</div>
+            <div class="conquista-desc">Zerou o jogo no modo Fácil</div>
+          </div>
+          <span class="conquista-modo modo-facil">FÁCIL</span>
+        </div>
+        <div class="conquista-card desbloqueada">
+          <div class="conquista-icone">🏆</div>
+          <div class="conquista-info">
+            <div class="conquista-nome">Campeão de Miami</div>
+            <div class="conquista-desc">Zerou o jogo no modo Normal</div>
+          </div>
+          <span class="conquista-modo modo-normal">NORMAL</span>
+        </div>
+        <div class="conquista-card bloqueada">
+          <div class="conquista-icone conquista-icone-lock">🔒</div>
+          <div class="conquista-info">
+            <div class="conquista-nome">???</div>
+            <div class="conquista-desc">Conquista bloqueada</div>
+          </div>
+          <span class="conquista-modo modo-dificil">DIFÍCIL</span>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #1e2229">
+        <button class="btn-secundario">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TELA 8: CHANGELOG ═══ -->
+<div class="tela" id="tela-changelog">
+  <div class="overlay-modal">
+    <div class="modal-painel" style="max-width:560px">
+      <div class="modal-header">
+        <div class="modal-titulo">📋 Novidades</div>
+        <button class="btn-fechar">×</button>
+      </div>
+      <div class="changelog-conteudo">
+        <div class="changelog-versao">v1.2.1</div>
+        <div class="changelog-data">Junho 2026</div>
+
+        <div class="changelog-secao">
+          <div class="changelog-secao-titulo">UI</div>
+          <div class="changelog-item">Volume agora é barra deslizável de 0–100%</div>
+          <div class="changelog-item">Textos das cartas ajustados para não transbordar</div>
+          <div class="changelog-item">Overlapping de UI corrigido</div>
+        </div>
+
+        <div class="changelog-secao">
+          <div class="changelog-secao-titulo">Speeds</div>
+          <div class="changelog-item">Speeds renomeados: Shake It, Suprised, SayWallahi, KindaHomeless, KillThatBoy</div>
+          <div class="changelog-item">Speed5 renomeado para ShockedSpeed</div>
+          <div class="changelog-item">ShockedSpeed e Speed6 unificados: buff muda o sprite</div>
+          <div class="changelog-item">KindaHomeless Speed custa $1500, limitado a 1 por mapa</div>
+          <div class="changelog-item">Todos os Speeds com +5% de dano e cadência</div>
+        </div>
+
+        <div class="changelog-secao">
+          <div class="changelog-secao-titulo">Gameplay</div>
+          <div class="changelog-item">Skip Wave aparece 15–20s após início da wave com bônus de moedas</div>
+          <div class="changelog-item">Botão Auto-Skip adicionado</div>
+          <div class="changelog-item">Moedas iniciais aumentadas para $400</div>
+          <div class="changelog-item">Vidas reduzidas de 20 para 10</div>
+          <div class="changelog-item">Modos de dificuldade: Fácil, Normal, Difícil</div>
+          <div class="changelog-item">Conquistas por modo desbloqueadas ao zerar</div>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #1e2229">
+        <button class="btn-primario">Entendido</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TELA 9: PAUSE ═══ -->
+<div class="tela" id="tela-pause">
+  <div class="pause-overlay">
+    <div class="pause-painel">
+      <div class="pause-titulo">Pausado</div>
+      <div class="pause-subtitulo">Onda 7/15 &nbsp;·&nbsp; 04:12 &nbsp;·&nbsp; Normal</div>
+      <div class="pause-botoes">
+        <button class="btn-primario">Continuar</button>
+        <button class="btn-secundario">Menu Principal</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TELA 10: VITÓRIA ═══ -->
+<div class="tela" id="tela-vitoria">
+  <div class="vitoria-bg">
+    <div class="vitoria-painel">
+      <div class="vitoria-titulo">Vitória!</div>
+      <div class="vitoria-modo">Modo Normal &nbsp;·&nbsp; 15 Ondas</div>
+
+      <div class="conquista-banner">
+        <div class="conquista-banner-icone">🏆</div>
+        <div class="conquista-banner-info">
+          <div class="conquista-banner-label">Conquista Desbloqueada</div>
+          <div class="conquista-banner-nome">Campeão de Miami</div>
+        </div>
+      </div>
+
+      <div class="vitoria-stats">
+        <div class="vitoria-stat">
+          <div class="vitoria-stat-valor" style="color:var(--ciano)">04:32.1</div>
+          <div class="vitoria-stat-label">Tempo</div>
+        </div>
+        <div class="vitoria-stat">
+          <div class="vitoria-stat-valor" style="color:var(--dourado)">87</div>
+          <div class="vitoria-stat-label">Inimigos</div>
+        </div>
+        <div class="vitoria-stat">
+          <div class="vitoria-stat-valor" style="color:var(--verde-neon)">$310</div>
+          <div class="vitoria-stat-label">Moedas restantes</div>
+        </div>
+        <div class="vitoria-stat">
+          <div class="vitoria-stat-valor" style="color:#888">7</div>
+          <div class="vitoria-stat-label">Vidas restantes</div>
+        </div>
+      </div>
+
+      <div class="vitoria-pos">🏅 Você ficou em 2º no leaderboard global</div>
+
+      <button class="btn-primario">Jogar Novamente</button>
+      <button class="btn-secundario">Menu Principal</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TELA 11: GAME OVER ═══ -->
+<div class="tela" id="tela-gameover">
+  <div class="vitoria-bg" style="background:linear-gradient(135deg,#1a0505,#111,#0a0505)">
+    <div class="vitoria-painel">
+      <div class="gameover-titulo">Game Over</div>
+      <div class="vitoria-modo">Onda 9/15 &nbsp;·&nbsp; Normal</div>
+
+      <div class="vitoria-stats">
+        <div class="vitoria-stat">
+          <div class="vitoria-stat-valor" style="color:#888">08:14.7</div>
+          <div class="vitoria-stat-label">Tempo sobrevivido</div>
+        </div>
+        <div class="vitoria-stat">
+          <div class="vitoria-stat-valor" style="color:var(--dourado)">52</div>
+          <div class="vitoria-stat-label">Inimigos</div>
+        </div>
+        <div class="vitoria-stat">
+          <div class="vitoria-stat-valor" style="color:var(--vermelho)">0</div>
+          <div class="vitoria-stat-label">Vidas restantes</div>
+        </div>
+        <div class="vitoria-stat">
+          <div class="vitoria-stat-valor" style="color:#888">$80</div>
+          <div class="vitoria-stat-label">Moedas restantes</div>
+        </div>
+      </div>
+
+      <button class="btn-primario">Tentar Novamente</button>
+      <button class="btn-secundario">Menu Principal</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function mostrar(id) {
+    document.querySelectorAll('.tela').forEach(t => t.classList.remove('visivel'));
+    document.querySelectorAll('.nav-telas button').forEach(b => b.classList.remove('ativo'));
+    document.getElementById('tela-' + id).classList.add('visivel');
+    event.target.classList.add('ativo');
+  }
+</script>
+</body>
+</html>

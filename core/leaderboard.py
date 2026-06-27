@@ -56,11 +56,13 @@ _PLAYER_ID_CACHE: str | None = None
 
 def _headers(upsert: bool = False) -> dict:
     """Cabeçalhos REST. `upsert=True` ativa o merge por chave de conflito."""
-    prefer = (
-        "resolution=merge-duplicates,return=representation"
-        if upsert
-        else "return=representation"
-    )
+    # Usamos return=minimal no POST para o Supabase não tentar buscar uma 
+    # coluna 'id' que não existe, resolvendo o erro 400 original.
+    if upsert:
+        prefer = "resolution=merge-duplicates,return=minimal"
+    else:
+        prefer = "return=representation"
+        
     return {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -74,10 +76,21 @@ def _request(method: str, endpoint: str, body: dict | None = None, upsert: bool 
     url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
     data = json.dumps(body).encode() if body else None
     req = urllib.request.Request(url, data=data, headers=_headers(upsert), method=method)
+    
     try:
         with urllib.request.urlopen(req, timeout=5, context=_SSL_CTX) as resp:
             corpo = resp.read().decode()
             return json.loads(corpo) if corpo else []
+    except urllib.error.HTTPError as e:
+        # CAPTURA O CORPO DO ERRO DO SUPABASE
+        error_body = e.read().decode('utf-8')
+        print("\n" + "="*50)
+        print("🚨 ERRO DO SUPABASE DETECTADO 🚨")
+        print(f"Código: {e.code}")
+        print(f"Mensagem do Banco: {error_body}")
+        print("="*50 + "\n")
+        logger.warning("[Leaderboard] Sem conexão: %s", e)
+        return None
     except Exception as e:  # noqa: BLE001 — rede nunca pode crashar o jogo
         logger.warning("[Leaderboard] Sem conexão: %s", e)
         return None
@@ -145,11 +158,7 @@ def _formatar_data_utc(created_at_str: str | None) -> str:
 # API pública
 # --------------------------------------------------------------------------- #
 def buscar_top10() -> list[dict]:
-    """Top 10 por menor tempo (ordem crescente). Lista vazia em falha.
-
-    A data exibida (`data`) é derivada do `created_at` UTC do servidor — a UI
-    continua lendo a chave `data`, agora sempre no fuso de Brasília.
-    """
+    """Top 10 por menor tempo (ordem crescente). Lista vazia em falha."""
     endpoint = (
         f"{TABELA}?select=nome,tempo,created_at,player_id"
         f"&order=tempo.asc&limit={MAX_ENTRIES}"
@@ -161,23 +170,19 @@ def buscar_top10() -> list[dict]:
         e["data"] = _formatar_data_utc(e.get("created_at"))
     return resultado
 
-
 def registrar_vitoria(nome: str, tempo_segundos: float) -> int | None:
-    """Registra a vitória (UPSERT por player_id) e retorna a posição no top 10.
-
-    None significa: fora do top 10 OU falha de rede (não distingue, de
-    propósito — a UI trata ambos como 'registrado, mas sem destaque'). A data é
-    gerada pelo servidor (`created_at DEFAULT now()`), nunca pelo cliente.
-    """
+    """Registra a vitória (UPSERT por player_id) e retorna a posição no top 10."""
     player_id = _get_or_create_player_id()
+    
+    # Usando 'nome' (em português), que é como a coluna está no banco
     entrada = {
         "nome": nome[:16].strip() or "Anônimo",
         "tempo": round(tempo_segundos, 1),
         "player_id": player_id,
     }
-    # UPSERT: nova vitória do mesmo player_id atualiza a linha (top-10 e regra de
-    # "melhor tempo" são garantidos no servidor — ver supabase_migracao_v1.1.0.sql).
+    
     _request("POST", f"{TABELA}?on_conflict=player_id", entrada, upsert=True)
+    
     top = buscar_top10()
     for i, e in enumerate(top):
         if e.get("player_id") == player_id:

@@ -11,11 +11,25 @@ import pygame_gui
 
 from config.settings import (
     COLOR_GOLD,
-    COLOR_HUD_BG,
     COR_TEXTO,
+    COR_FUNDO_TELA,
+    COR_FUNDO_MODAL,
+    COR_OVERLAY_MODAL,
+    COR_OVERLAY_BG_MENU,
+    COR_OVERLAY_PAUSE,
+    COR_SLIDER_TRACK,
+    COR_SLIDER_HANDLE,
+    COR_GAMEOVER_TITULO,
+    COR_VICTORY_TITULO,
+    COR_BANNER_FUNDO,
+    COR_BANNER_DESC,
+    COR_DOURADO_ESCURO,
+    COR_LABEL_HUD,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
+    FONTE_TITULO_PATH,
 )
+from ui.conquistas_screen import ConquistasScreen
 
 # Dimensões padrão dos botões.
 BTN_W: int = 280
@@ -41,6 +55,8 @@ class _EmBreveScreen:
         self._fonte_titulo = pygame.font.SysFont(None, 48)
         self._painel = pygame.Rect(0, 0, 600, 400)
         self._painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
+        self._overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        self._overlay.fill(COR_OVERLAY_MODAL)
         self.botao_fechar = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(CENTRO_X - 90, self._painel.bottom - 80, 180, 50),
             text="Fechar",
@@ -56,10 +72,8 @@ class _EmBreveScreen:
 
     def draw(self, surface: pygame.Surface) -> None:
         """Escurece a tela e desenha o painel central com o título."""
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))
-        surface.blit(overlay, (0, 0))
-        pygame.draw.rect(surface, COLOR_HUD_BG, self._painel, border_radius=12)
+        surface.blit(self._overlay, (0, 0))
+        pygame.draw.rect(surface, COR_FUNDO_MODAL, self._painel, border_radius=12)
         pygame.draw.rect(surface, COLOR_GOLD, self._painel, 2, border_radius=12)
         txt = self._fonte_titulo.render(self.titulo, True, COR_TEXTO)
         surface.blit(txt, txt.get_rect(center=(CENTRO_X, self._painel.y + 90)))
@@ -69,12 +83,6 @@ class _EmBreveScreen:
         self.botao_fechar.kill()
 
 
-class ConquistasScreen(_EmBreveScreen):
-    """Painel de conquistas (placeholder)."""
-
-    titulo = "🏆 Conquistas — Em breve..."
-
-
 class MultijogadorScreen(_EmBreveScreen):
     """Painel de multijogador online (placeholder)."""
 
@@ -82,65 +90,113 @@ class MultijogadorScreen(_EmBreveScreen):
 
 
 class ConfiguracoesScreen:
-    """Painel de Configurações. Único controle: diminuir o volume da música.
+    """Painel de Configurações com slider de volume da música (Pygame puro).
 
     Segue o protocolo de sub-painel do menu (`handle_event` -> 'close'|None,
-    `draw`, `destroy`). Chama `audio.abaixar_volume()` ao clicar no botão.
+    `draw`, `destroy`). O slider é arrastável: a posição X do handle mapeia para
+    0.0–1.0 e chama `audio.set_volume`. O botão Fechar é do pygame_gui.
     """
 
     titulo: str = "⚙️ Configurações"
 
+    # Geometria do slider (em espaço de render).
+    TRACK_W: int = 300
+    TRACK_H: int = 6
+    HANDLE_R: int = 8
+
     def __init__(self, manager: pygame_gui.UIManager, audio=None) -> None:
         self._fonte_titulo = pygame.font.SysFont(None, 48)
-        self._fonte = pygame.font.SysFont(None, 40)
+        self._fonte = pygame.font.SysFont(None, 34)
         self._audio = audio
         self._painel = pygame.Rect(0, 0, 600, 400)
         self._painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
-        self.botao_baixar = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(CENTRO_X - 140, self._painel.y + 170, 280, 56),
-            text="🔉 Diminuir Música",
-            manager=manager,
+        self._overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        self._overlay.fill(COR_OVERLAY_MODAL)
+
+        # Trilha do slider, centralizada no painel.
+        self._track = pygame.Rect(
+            CENTRO_X - self.TRACK_W // 2,
+            self._painel.y + 190,
+            self.TRACK_W,
+            self.TRACK_H,
         )
+        self._dragging: bool = False
+
         self.botao_fechar = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(CENTRO_X - 90, self._painel.bottom - 80, 180, 50),
             text="Fechar",
             manager=manager,
         )
 
-    def _volume_pct(self) -> int:
-        """Volume atual da música em porcentagem (0–100)."""
-        if self._audio is None:
-            return 100
-        return int(round(self._audio.volume_musica * 100))
+    # ------------------------------------------------------------------ #
+    # Slider helpers
+    # ------------------------------------------------------------------ #
+    def _valor(self) -> float:
+        """Volume atual (0.0–1.0)."""
+        return self._audio.volume_musica if self._audio is not None else 1.0
+
+    def _handle_pos(self) -> tuple[int, int]:
+        """Centro do handle conforme o volume atual."""
+        x = self._track.x + int(self._valor() * self._track.width)
+        return x, self._track.centery
+
+    def _aplicar_de_x(self, mouse_x: int) -> None:
+        """Converte uma posição X de mouse em volume e aplica via audio.set_volume."""
+        frac = (mouse_x - self._track.x) / self._track.width
+        frac = max(0.0, min(1.0, frac))
+        if self._audio is not None:
+            self._audio.set_volume(frac)
 
     def handle_event(self, event: pygame.event.Event) -> str | None:
-        """'close' ao fechar; diminui o volume e mantém aberto ao clicar baixar."""
+        """'close' ao fechar; arrasto do slider ajusta o volume (sem fechar)."""
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
-            if event.ui_element == self.botao_baixar:
-                if self._audio is not None:
-                    self._audio.abaixar_volume()
-                return None
             if event.ui_element == self.botao_fechar:
                 return "close"
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            # Clique no handle ou em qualquer ponto da trilha captura o arrasto.
+            hx, hy = self._handle_pos()
+            sobre_handle = (event.pos[0] - hx) ** 2 + (event.pos[1] - hy) ** 2 <= (
+                self.HANDLE_R + 4
+            ) ** 2
+            area_track = self._track.inflate(2 * self.HANDLE_R, 2 * self.HANDLE_R + 8)
+            if sobre_handle or area_track.collidepoint(event.pos):
+                self._dragging = True
+                self._aplicar_de_x(event.pos[0])
+        elif event.type == pygame.MOUSEMOTION and self._dragging:
+            self._aplicar_de_x(event.pos[0])
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            self._dragging = False
         return None
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Escurece a tela, desenha o painel, o título e o volume atual."""
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))
-        surface.blit(overlay, (0, 0))
-        pygame.draw.rect(surface, COLOR_HUD_BG, self._painel, border_radius=12)
+        """Escurece a tela, desenha o painel, o título e o slider de volume."""
+        surface.blit(self._overlay, (0, 0))
+        pygame.draw.rect(surface, COR_FUNDO_MODAL, self._painel, border_radius=12)
         pygame.draw.rect(surface, COLOR_GOLD, self._painel, 2, border_radius=12)
 
         titulo = self._fonte_titulo.render(self.titulo, True, COR_TEXTO)
         surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, self._painel.y + 70)))
 
-        vol = self._fonte.render(f"Volume da música: {self._volume_pct()}%", True, COLOR_GOLD)
-        surface.blit(vol, vol.get_rect(center=(CENTRO_X, self._painel.y + 125)))
+        rotulo = self._fonte.render("Volume da Música", True, COR_TEXTO)
+        surface.blit(rotulo, rotulo.get_rect(center=(CENTRO_X, self._painel.y + 145)))
+
+        # Trilha (cinza escuro) + preenchimento (dourado) até o handle.
+        pygame.draw.rect(surface, COR_SLIDER_TRACK, self._track, border_radius=3)
+        hx, hy = self._handle_pos()
+        preenchido = pygame.Rect(
+            self._track.x, self._track.y, hx - self._track.x, self._track.height
+        )
+        pygame.draw.rect(surface, COLOR_GOLD, preenchido, border_radius=3)
+        # Handle (círculo dourado).
+        pygame.draw.circle(surface, COLOR_GOLD, (hx, hy), self.HANDLE_R)
+        pygame.draw.circle(surface, COR_SLIDER_HANDLE, (hx, hy), self.HANDLE_R, 2)
+
+        # Porcentagem à direita do slider.
+        pct = self._fonte.render(f"{int(round(self._valor() * 100))}%", True, COLOR_GOLD)
+        surface.blit(pct, pct.get_rect(midleft=(self._track.right + 18, self._track.centery)))
 
     def destroy(self) -> None:
-        """Remove os botões do UIManager."""
-        self.botao_baixar.kill()
+        """Remove o botão Fechar do UIManager."""
         self.botao_fechar.kill()
 
 
@@ -150,7 +206,7 @@ class MenuScreen:
     def __init__(self, manager: pygame_gui.UIManager, assets=None, audio=None) -> None:
         self._manager = manager
         self._audio = audio
-        self._fonte_titulo = pygame.font.SysFont(None, 110, bold=True)
+        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 110)
 
         # Fundo: mapa escurecido (ou fundo neutro se ausente).
         self._bg: pygame.Surface | None = None
@@ -226,7 +282,7 @@ class MenuScreen:
         except KeyError:
             return None
         escuro = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        escuro.fill((0, 0, 0, 150))
+        escuro.fill(COR_OVERLAY_BG_MENU)
         bg.blit(escuro, (0, 0))
         return bg
 
@@ -284,7 +340,7 @@ class MenuScreen:
         if self._bg is not None:
             surface.blit(self._bg, (0, 0))
         else:
-            surface.fill(COLOR_HUD_BG)
+            surface.fill(COR_FUNDO_TELA)
 
         # Sprites nos cantos opostos (Ancelotti à esquerda, Speed à direita).
         if self._sprite_ancelotti is not None:
@@ -295,7 +351,7 @@ class MenuScreen:
             )
 
         # Título com sombra.
-        sombra = self._fonte_titulo.render("SPEED VS LABUBU", True, (0, 0, 0))
+        sombra = self._fonte_titulo.render("SPEED VS LABUBU", True, COR_FUNDO_TELA)
         titulo = self._fonte_titulo.render("SPEED VS LABUBU", True, COLOR_GOLD)
         surface.blit(sombra, sombra.get_rect(center=(CENTRO_X + 4, 154)))
         surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, 150)))
@@ -316,7 +372,9 @@ class PauseScreen:
     """Overlay de pause semi-transparente sobre o jogo."""
 
     def __init__(self, manager: pygame_gui.UIManager) -> None:
-        self._fonte_titulo = pygame.font.SysFont(None, 72)
+        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 72)
+        self._overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        self._overlay.fill(COR_OVERLAY_PAUSE)
         self.botao_continuar = pygame_gui.elements.UIButton(
             relative_rect=_rect_centralizado(330), text="CONTINUAR", manager=manager
         )
@@ -337,9 +395,7 @@ class PauseScreen:
 
     def draw(self, surface: pygame.Surface) -> None:
         """Painel escuro semi-transparente cobrindo a tela + título."""
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((10, 10, 20, 180))
-        surface.blit(overlay, (0, 0))
+        surface.blit(self._overlay, (0, 0))
         titulo = self._fonte_titulo.render("PAUSA", True, COR_TEXTO)
         surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, 230)))
 
@@ -356,7 +412,7 @@ class _EndScreen:
     cor_titulo: tuple[int, int, int] = COR_TEXTO
 
     def __init__(self, manager: pygame_gui.UIManager) -> None:
-        self._fonte_titulo = pygame.font.SysFont(None, 96)
+        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 96)
         self.botao_retry = pygame_gui.elements.UIButton(
             relative_rect=_rect_centralizado(360),
             text="JOGAR NOVAMENTE",
@@ -379,7 +435,7 @@ class _EndScreen:
 
     def draw(self, surface: pygame.Surface) -> None:
         """Fundo escuro + título grande."""
-        surface.fill(COLOR_HUD_BG)
+        surface.fill(COR_FUNDO_TELA)
         titulo = self._fonte_titulo.render(self.titulo, True, self.cor_titulo)
         surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, 230)))
 
@@ -390,17 +446,81 @@ class _EndScreen:
 
 
 class GameOverScreen(_EndScreen):
-    """Tela de derrota."""
+    """Tela de derrota — painel centralizado com stats, igual ao .vitoria-painel do HTML."""
 
     titulo = "GAME OVER"
-    cor_titulo = (220, 60, 60)
+    cor_titulo = COR_GAMEOVER_TITULO
+
+    def __init__(
+        self,
+        manager: pygame_gui.UIManager,
+        kills: int = 0,
+        coins: int = 0,
+        lives: int = 0,
+        onda_atual: int = 0,
+        onda_total: int = 0,
+        tempo: float = 0.0,
+        modo: str = "NORMAL",
+    ) -> None:
+        super().__init__(manager)
+        self._kills = kills
+        self._coins = coins
+        self._lives = lives
+        self._onda_atual = onda_atual
+        self._onda_total = onda_total
+        self._tempo = tempo
+        self._modo = modo.upper()
+        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 80)
+        self._fonte_msg = pygame.font.SysFont("monospace", 36)
+        self._fonte_ph = pygame.font.SysFont("monospace", 22)
+        self._fonte_sub = pygame.font.SysFont("monospace", 22)
+        # Repositiona botões para o rodapé do painel
+        self.botao_retry.set_relative_position((CENTRO_X - BTN_W // 2, 540))
+        self.botao_menu.set_relative_position((CENTRO_X - BTN_W // 2, 610))
+
+    def draw(self, surface: pygame.Surface) -> None:
+        """Painel centralizado com border-top vermelho + stats (espelha .vitoria-painel)."""
+        from core.leaderboard import formatar_tempo
+
+        surface.fill(COR_FUNDO_TELA)
+
+        painel = pygame.Rect(0, 0, 520, 520)
+        painel.center = (CENTRO_X, WINDOW_HEIGHT // 2 - 30)
+        pygame.draw.rect(surface, COR_FUNDO_MODAL, painel)
+        pygame.draw.rect(surface, (80, 12, 10), painel, 1)
+        pygame.draw.line(surface, COR_GAMEOVER_TITULO, painel.topleft, painel.topright, 3)
+
+        titulo = self._fonte_titulo.render(self.titulo, True, self.cor_titulo)
+        surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, painel.y + 50)))
+
+        sub = self._fonte_sub.render(
+            f"Onda {self._onda_atual}/{self._onda_total}  ·  {self._modo}", True, COR_LABEL_HUD
+        )
+        surface.blit(sub, sub.get_rect(center=(CENTRO_X, painel.y + 100)))
+
+        stats = [
+            ("TEMPO", formatar_tempo(self._tempo), (136, 136, 136)),
+            ("INIMIGOS", str(self._kills), COLOR_GOLD),
+            ("VIDAS REST.", str(self._lives), COR_GAMEOVER_TITULO),
+            ("MOEDAS", f"$ {self._coins}", (136, 136, 136)),
+        ]
+        grid_y = painel.y + 155
+        grid_x = painel.x + 20
+        col_w = (painel.width - 40) // 2
+        for i, (label, valor, cor_val) in enumerate(stats):
+            cx = grid_x + (i % 2) * col_w + col_w // 2
+            cy = grid_y + (i // 2) * 72
+            val_surf = self._fonte_msg.render(valor, True, cor_val)
+            lbl_surf = self._fonte_ph.render(label, True, COR_LABEL_HUD)
+            surface.blit(val_surf, val_surf.get_rect(center=(cx, cy)))
+            surface.blit(lbl_surf, lbl_surf.get_rect(center=(cx, cy + 26)))
 
 
 class VictoryScreen(_EndScreen):
     """Tela de vitória, com imagem de recompensa e estatísticas da partida."""
 
     titulo = "VITÓRIA!"
-    cor_titulo = (80, 220, 90)
+    cor_titulo = COR_VICTORY_TITULO
 
     # Dimensões da área da imagem de vitória (ou do placeholder).
     IMG_W: int = 420
@@ -413,16 +533,22 @@ class VictoryScreen(_EndScreen):
         coins: int,
         victory_image: pygame.Surface | None = None,
         tempo: float = 0.0,
+        nova_conquista: dict | None = None,
     ) -> None:
         super().__init__(manager)
         self._kills = kills
         self._coins = coins
         self._tempo = tempo
-        self._fonte_titulo = pygame.font.SysFont(None, 80)
-        self._fonte_msg = pygame.font.SysFont(None, 44)
-        self._fonte_sub = pygame.font.SysFont(None, 32)
-        self._fonte_stats = pygame.font.SysFont(None, 36)
-        self._fonte_ph = pygame.font.SysFont(None, 28)
+        # Banner exibido só quando a vitória desbloqueou uma conquista NOVA.
+        self._nova_conquista = nova_conquista
+        # Surface cacheada para o banner de conquista (tamanho fixo 376×104)
+        self._banner_surf = pygame.Surface((376, 104), pygame.SRCALPHA)
+        self._banner_surf.fill(COR_BANNER_FUNDO)
+        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 80)
+        self._fonte_msg = pygame.font.SysFont("monospace", 38)
+        self._fonte_sub = pygame.font.SysFont("monospace", 28)
+        self._fonte_stats = pygame.font.SysFont("monospace", 32)
+        self._fonte_ph = pygame.font.SysFont("monospace", 24)
 
         # Imagem de vitória escalada para caber na área (ou None → placeholder).
         self._img: pygame.Surface | None = None
@@ -442,39 +568,62 @@ class VictoryScreen(_EndScreen):
         return pygame.transform.smoothscale(img, (int(iw * fator), int(ih * fator)))
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Título, imagem (ou placeholder), mensagens e estatísticas."""
-        surface.fill(COLOR_HUD_BG)
+        """Painel centralizado com título, imagem, stats grid e banner de conquista."""
+        from core.leaderboard import formatar_tempo
+
+        surface.fill(COR_FUNDO_TELA)
+
+        # Painel central estilizado (border-top 3px dourado, como HTML .vitoria-painel)
+        painel = pygame.Rect(0, 0, 520, 560)
+        painel.center = (CENTRO_X, WINDOW_HEIGHT // 2 - 30)
+        pygame.draw.rect(surface, COR_FUNDO_MODAL, painel)
+        pygame.draw.rect(surface, COR_DOURADO_ESCURO, painel, 1)
+        pygame.draw.line(surface, COLOR_GOLD, painel.topleft, painel.topright, 3)
 
         titulo = self._fonte_titulo.render(self.titulo, True, self.cor_titulo)
-        surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, 70)))
+        surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, painel.y + 50)))
 
-        # Imagem de vitória centralizada, ou placeholder dourado.
-        area = pygame.Rect(0, 0, self.IMG_W, self.IMG_H)
-        area.center = (CENTRO_X, 200)
+        # Imagem ou placeholder.
+        area = pygame.Rect(0, 0, self.IMG_W, 140)
+        area.center = (CENTRO_X, painel.y + 150)
         if self._img is not None:
             surface.blit(self._img, self._img.get_rect(center=area.center))
         else:
-            pygame.draw.rect(surface, COLOR_GOLD, area, 3)
+            pygame.draw.rect(surface, COR_DOURADO_ESCURO, area, 1)
             ph = self._fonte_ph.render("[ IMAGEM DE VITÓRIA ]", True, COLOR_GOLD)
             surface.blit(ph, ph.get_rect(center=area.center))
 
-        # Mensagem principal e submensagem (recompensa placeholder).
-        msg = self._fonte_msg.render(
-            "Parabéns! Você derrotou Ancelotti!", True, COR_TEXTO
-        )
-        surface.blit(msg, msg.get_rect(center=(CENTRO_X, 330)))
-        sub = self._fonte_sub.render("Você recebe: Texas Chibi de recompensa!", True, COLOR_GOLD)
-        surface.blit(sub, sub.get_rect(center=(CENTRO_X, 375)))
-
-        # Estatísticas da partida (inclui o tempo total, se houver).
-        from core.leaderboard import formatar_tempo
-
-        linhas = [
-            f"Inimigos eliminados: {self._kills}",
-            f"Moedas restantes: $ {self._coins}",
+        # Stats em 2 colunas (como .vitoria-stats no HTML).
+        stats = [
+            ("INIMIGOS", str(self._kills)),
+            ("MOEDAS", f"$ {self._coins}"),
         ]
         if self._tempo > 0:
-            linhas.append(f"Tempo: {formatar_tempo(self._tempo)}")
-        for i, linha in enumerate(linhas):
-            txt = self._fonte_stats.render(linha, True, COR_TEXTO)
-            surface.blit(txt, txt.get_rect(center=(CENTRO_X, 420 + i * 40)))
+            stats += [("TEMPO", formatar_tempo(self._tempo)), ("MODO", "NORMAL")]
+        grid_y = painel.y + 250
+        grid_x = painel.x + 20
+        col_w = (painel.width - 40) // 2
+        for i, (label, valor) in enumerate(stats):
+            cx = grid_x + (i % 2) * col_w + col_w // 2
+            cy = grid_y + (i // 2) * 72
+            val_surf = self._fonte_msg.render(valor, True, COR_TEXTO)
+            lbl_surf = self._fonte_ph.render(label, True, COR_LABEL_HUD)
+            surface.blit(val_surf, val_surf.get_rect(center=(cx, cy)))
+            surface.blit(lbl_surf, lbl_surf.get_rect(center=(cx, cy + 28)))
+
+        if self._nova_conquista is not None:
+            self._desenhar_banner_conquista(surface)
+
+    def _desenhar_banner_conquista(self, surface: pygame.Surface) -> None:
+        """Toast dourado no canto superior direito anunciando a conquista nova."""
+        c = self._nova_conquista
+        box = pygame.Rect(WINDOW_WIDTH - 396, 20, 376, 104)
+        surface.blit(self._banner_surf, box.topleft)
+        pygame.draw.rect(surface, COLOR_GOLD, box, 3, border_radius=10)
+
+        titulo = self._fonte_sub.render("CONQUISTA DESBLOQUEADA!", True, COLOR_GOLD)
+        surface.blit(titulo, (box.x + 16, box.y + 12))
+        nome = self._fonte_sub.render(f'"{c["nome"]}"', True, COR_TEXTO)
+        surface.blit(nome, (box.x + 16, box.y + 44))
+        desc = self._fonte_ph.render(c["descricao"], True, COR_BANNER_DESC)
+        surface.blit(desc, (box.x + 16, box.y + 74))
