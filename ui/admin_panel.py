@@ -15,7 +15,7 @@ import pygame
 import pygame_gui
 
 from config.settings import (
-    CENTRO_X,
+    # CORREÇÃO: CENTRO_X e COLOR_GOLD removidos (não existem no settings.py)
     FONTE_TITULO_PATH,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
@@ -30,7 +30,6 @@ from config.settings import (
     COR_TEXTO_PRIMARIO,
     COR_VERDE_NEON,
     COR_VERMELHO,
-    COLOR_GOLD,
 )
 from core import texas_coins
 from core import leaderboard as lb
@@ -72,7 +71,8 @@ class AdminPanel:
         self._overlay.fill(COR_OVERLAY_MODAL)
 
         self._painel = pygame.Rect(0, 0, PAINEL_W, PAINEL_H)
-        self._painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
+        # CORREÇÃO: CENTRO_X substituído por WINDOW_WIDTH // 2
+        self._painel.center = (WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2)
         px, py = self._painel.x, self._painel.y
 
         self._aba_ativa = -1  # forçar _set_aba(0) no fim do __init__
@@ -408,7 +408,9 @@ class AdminPanel:
                 pygame.draw.rect(surface, COR_DOURADO, row_rect, 1)
 
             nome = entry.get("nome", "?")[:16]
-            tempo = lb.formatar_tempo(entry.get("tempo", 0))
+            # CORREÇÃO: Evita None vindo do banco de dados
+            tempo_val = entry.get("tempo", 0) or 0
+            tempo = lb.formatar_tempo(tempo_val)
             pid_trunc = entry.get("player_id", "")[:14] + "..."
             linha = f"  {i + 1:>2}  {nome:<18} {tempo:>7}  {pid_trunc}"
             cor = COR_DOURADO if sel else COR_TEXTO_PRIMARIO

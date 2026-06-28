@@ -277,9 +277,16 @@ def admin_upsert(nome: str, tempo: float, player_id: str) -> bool:
         return False
 
 
-def formatar_tempo(segundos: float) -> str:
-    """Formata segundos como MM:SS.d (décimos)."""
-    m = int(segundos) // 60
-    s = int(segundos) % 60
-    d = int((segundos - int(segundos)) * 10)
-    return f"{m:02d}:{s:02d}.{d}"
+def formatar_tempo(segundos: float | int | None) -> str:
+    """Formata segundos como MM:SS.d (décimos). Blindado contra None/str."""
+    if segundos is None:
+        segundos = 0.0
+    try:
+        s = float(segundos)
+    except (ValueError, TypeError):
+        s = 0.0
+        
+    m = int(s) // 60
+    sec = int(s) % 60
+    d = int((s - int(s)) * 10)
+    return f"{m:02d}:{sec:02d}.{d}"
