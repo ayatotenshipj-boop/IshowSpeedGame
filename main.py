@@ -19,6 +19,7 @@ import pygame
 import pygame_gui
 
 from config.settings import (
+    CELL_SIZE,
     FPS,
     HIT_RADIUS,
     HUD_RECT,
@@ -45,7 +46,7 @@ from core.audio import AudioManager
 from core.game_state import GameState
 from core.state_manager import GameScreen, StateManager
 from core.updater import Updater
-from core import conquistas, leaderboard, preferencias
+from core import conquistas, leaderboard, player_profile, preferencias, texas_coins
 from entities.boss import Ancelotti
 from entities.tower import SPRITE_SIZE, TOWER_TYPES, Speed5, Speed7
 from entities.wave_manager import WAVES
@@ -60,6 +61,7 @@ from ui.changelog_screen import (
 )
 from ui.diff_selector import DiffSelectorWidget
 from ui.hud import HUD
+from ui.lobby_screen import LobbyScreen
 from ui.intro_scene import IntroScene
 from ui.leaderboard_screen import LeaderboardScreen
 from ui.menus import GameOverScreen, MenuScreen, PauseScreen, VictoryScreen
@@ -227,6 +229,54 @@ def _executar_fluxo_update(
         )
 
 
+def _desenhar_confirmacao_2x(
+    surface: pygame.Surface,
+    panel: pygame.Rect,
+    btn_sim: pygame.Rect,
+    btn_nao: pygame.Rect,
+    fonte_titulo: pygame.font.Font,
+    fonte_corpo: pygame.font.Font,
+) -> None:
+    """Modal bloqueante de confirmação ao tentar desligar 2×."""
+    mx, my = to_render(pygame.mouse.get_pos())
+
+    # Overlay escuro sobre o jogo.
+    overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 160))
+    surface.blit(overlay, (0, 0))
+
+    # Painel central (mesma paleta dos outros modais do jogo).
+    bg = pygame.Surface(panel.size, pygame.SRCALPHA)
+    bg.fill((17, 17, 8, 245))
+    surface.blit(bg, panel.topleft)
+    pygame.draw.rect(surface, (37, 40, 0), panel, 1)
+    pygame.draw.line(surface, (255, 208, 64), panel.topleft, (panel.right, panel.top), 3)
+
+    # Título e aviso.
+    titulo = fonte_titulo.render("DESLIGAR VELOCIDADE 2×?", True, (255, 208, 64))
+    surface.blit(titulo, titulo.get_rect(centerx=panel.centerx, y=panel.y + 18))
+
+    aviso = fonte_corpo.render("Conquista 'Sem Piedade' não será contada.", True, (200, 60, 60))
+    surface.blit(aviso, aviso.get_rect(centerx=panel.centerx, y=panel.y + 50))
+
+    dica = fonte_corpo.render("ESC ou clicar fora cancela.", True, (85, 85, 85))
+    surface.blit(dica, dica.get_rect(centerx=panel.centerx, y=panel.y + 72))
+
+    # Botão "SIM, DESLIGAR" (vermelho).
+    hover_sim = btn_sim.collidepoint(mx, my)
+    pygame.draw.rect(surface, (90, 20, 10) if hover_sim else (60, 12, 6), btn_sim)
+    pygame.draw.rect(surface, (220, 60, 40), btn_sim, 1)
+    txt_sim = fonte_titulo.render("SIM, DESLIGAR", True, (255, 120, 90))
+    surface.blit(txt_sim, txt_sim.get_rect(center=btn_sim.center))
+
+    # Botão "NÃO, MANTER" (verde).
+    hover_nao = btn_nao.collidepoint(mx, my)
+    pygame.draw.rect(surface, (20, 60, 20) if hover_nao else (10, 36, 10), btn_nao)
+    pygame.draw.rect(surface, (50, 200, 80), btn_nao, 1)
+    txt_nao = fonte_titulo.render("NÃO, MANTER", True, (80, 230, 100))
+    surface.blit(txt_nao, txt_nao.get_rect(center=btn_nao.center))
+
+
 def main() -> None:
     """Inicializa o jogo e executa o game loop principal."""
     dev = modo_dev_ativo()
@@ -238,6 +288,15 @@ def main() -> None:
     pygame.display.set_caption(WINDOW_TITLE)
     clock = pygame.time.Clock()
     fullscreen = False
+
+    # Rects do modal de confirmação de desligar 2×.
+    _CONF_W, _CONF_H = 460, 152
+    _conf_panel = pygame.Rect((WINDOW_WIDTH - _CONF_W) // 2, (WINDOW_HEIGHT - _CONF_H) // 2,
+                              _CONF_W, _CONF_H)
+    # Dois botões simétricos: 160px cada, 20px de gap, centralizados.
+    _conf_btn_y = _conf_panel.bottom - 46
+    _conf_sim_rect = pygame.Rect(_conf_panel.x + 60, _conf_btn_y, 160, 34)
+    _conf_nao_rect = pygame.Rect(_conf_panel.x + 240, _conf_btn_y, 160, 34)
 
     # Surface interna onde TUDO é desenhado (resolução fixa); depois escalada
     # para a janela real com letterbox. F11 alterna janela/fullscreen.
@@ -256,6 +315,8 @@ def main() -> None:
     hud = HUD()
     tower_panel = TowerPanel()
     fonte_dev = pygame.font.SysFont(None, 16)
+    _fonte_conf_titulo = pygame.font.SysFont("monospace", 14, bold=True)
+    _fonte_conf = pygame.font.SysFont("monospace", 13)
 
     # Estado da partida e grid (recriados a cada nova partida).
     grid = PlacementGrid()
@@ -393,16 +454,10 @@ def main() -> None:
                     continue
                 acao = current_screen.handle_event(evento)
                 if acao == "play":
-                    # JOGAR: inicia direto com Normal; seletor in-game aparece em campo.
+                    # JOGAR: abre o lobby (modos + store) antes de entrar em campo.
                     current_screen.destroy()
-                    reset_game("normal")
-                    if preferencias.get("dialogo_habilitado"):
-                        current_screen = IntroScene(assets)
-                        state_manager.transition(GameScreen.INTRO)
-                    else:
-                        current_screen = None
-                        state_manager.transition(GameScreen.PLAYING)
-                        diff_selector = DiffSelectorWidget()
+                    current_screen = LobbyScreen(ui_manager, assets)
+                    state_manager.transition(GameScreen.LOBBY)
                 elif acao == "quit":
                     rodando = False
                 elif acao == "update":
@@ -419,6 +474,25 @@ def main() -> None:
                         ui_manager, versao_atual, changelog_texto
                     )
                     current_screen.set_botoes_visiveis(False)
+
+            elif state_manager.current == GameScreen.LOBBY:
+                acao = current_screen.handle_event(evento)
+                if acao == "casual":
+                    # Casual: mesmo fluxo do antigo JOGAR (seletor in-game).
+                    current_screen.destroy()
+                    reset_game("normal")
+                    if preferencias.get("dialogo_habilitado"):
+                        current_screen = IntroScene(assets)
+                        state_manager.transition(GameScreen.INTRO)
+                    else:
+                        current_screen = None
+                        state_manager.transition(GameScreen.PLAYING)
+                        diff_selector = DiffSelectorWidget()
+                elif acao == "voltar":
+                    current_screen.destroy()
+                    current_screen = MenuScreen(ui_manager, assets, audio)
+                    state_manager.transition(GameScreen.MENU)
+                    _talvez_abrir_changelog()
 
             elif state_manager.current == GameScreen.SELECAO_MODO:
                 acao = current_screen.handle_event(evento)
@@ -437,12 +511,14 @@ def main() -> None:
                     else:
                         current_screen = None
                         state_manager.transition(GameScreen.PLAYING)
-                        diff_selector = DiffSelectorWidget()
+                        diff_selector = DiffSelectorWidget(modo_inicial=acao)
 
             elif state_manager.current == GameScreen.PLAYING:
                 if evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
-                    # ESC: fecha painel, senão deseleciona carta, senão pausa.
-                    if state.selected_tower is not None:
+                    # ESC: cancela confirmação; senão fecha painel; senão pausa.
+                    if state.confirmando_desligar_2x:
+                        state.confirmando_desligar_2x = False
+                    elif state.selected_tower is not None:
                         state.selected_tower = None
                     elif state.selected_card is not None:
                         card_hand.deselect()
@@ -453,10 +529,22 @@ def main() -> None:
                 elif evento.type == pygame.MOUSEBUTTONDOWN:
                     # Seleção de carta / posicionamento de torre.
                     if evento.button == 3:
-                        card_hand.deselect()
-                        state.selected_card = None
+                        if state.confirmando_desligar_2x:
+                            state.confirmando_desligar_2x = False
+                        else:
+                            card_hand.deselect()
+                            state.selected_card = None
                     elif evento.button == 1:
                         pos = evento.pos
+                        # 0) Confirmação de desligar 2× tem prioridade absoluta.
+                        if state.confirmando_desligar_2x:
+                            if _conf_sim_rect.collidepoint(pos):
+                                state.speed_multiplier = 1.0
+                                state.iniciou_em_2x = False
+                                state.confirmando_desligar_2x = False
+                            else:
+                                state.confirmando_desligar_2x = False
+                            continue
                         # 0a) Seletor de dificuldade in-game tem prioridade máxima.
                         if diff_selector is not None and diff_selector.visible:
                             modo_clicado = diff_selector.handle_click(pos)
@@ -468,6 +556,7 @@ def main() -> None:
                                 state.iniciou_em_2x = True
                                 state.waves_congeladas = False
                                 diff_selector = None
+                                state.sessao_nonce = player_profile.iniciar_sessao("dificil_2x")
                                 continue
                             elif modo_clicado:
                                 state.modo_dificuldade = modo_clicado
@@ -475,13 +564,13 @@ def main() -> None:
                                 state.wave_manager.modo = modo_clicado
                                 state.waves_congeladas = False
                                 diff_selector = None
+                                state.sessao_nonce = player_profile.iniciar_sessao(modo_clicado)
                                 continue
                         # 0b) Botões do HUD (velocidade 2× e pular onda) têm
                         # prioridade máxima — evitam posicionar torre por baixo.
                         if hud.speed_button_rect().collidepoint(pos):
                             if state.speed_multiplier >= 2.0:
-                                state.speed_multiplier = 1.0
-                                state.iniciou_em_2x = False   # desligou 2×: conquista não conta
+                                state.confirmando_desligar_2x = True
                             else:
                                 state.speed_multiplier = 2.0
                                 if state.tempo_inicio == 0.0 and state.modo_dificuldade == "dificil":
@@ -540,38 +629,26 @@ def main() -> None:
                         elif MAP_RECT.collidepoint(pos) and state.selected_card is not None:
                             idx = state.selected_card
                             tipo = TOWER_TYPES[idx]
-                            # Posicionamento livre: a torre fica no pixel EXATO do
-                            # clique. Nenhum snap ao grid; a célula só serve para
-                            # validar o path (is_placeable) e a venda futura.
                             click_x, click_y = pos
                             cx, cy = grid.pixel_to_cell(click_x, click_y)
                             n_tipo = sum(1 for t in state.towers if type(t) is tipo)
-                            # Sobreposição rejeitada por distância euclidiana entre
-                            # centros (< 2*HIT_RADIUS), sem usar células OCCUPIED.
-                            sem_sobreposicao = all(
-                                (click_x - t.x) ** 2 + (click_y - t.y) ** 2
-                                > (2 * HIT_RADIUS) ** 2
-                                for t in state.towers
-                            )
                             if (
-                                grid.is_placeable(click_x, click_y)
-                                and sem_sobreposicao
+                                grid.is_area_placeable(click_x, click_y, tipo.cell_radius)
                                 and state.coins >= tipo.cost
                                 and n_tipo < tipo.max_no_campo
                             ):
+                                grid.set_occupied_radius(cx, cy, tipo.cell_radius)
                                 state.towers.append(
                                     tipo(assets, click_x, click_y, cx, cy)
                                 )
                                 state.coins -= tipo.cost
                                 card_hand.deselect()
                                 state.selected_card = None
-                                # Flash verde de confirmação no ponto do clique.
                                 state.death_flashes.append(
                                     {"x": click_x, "y": click_y, "timer": 0.3,
                                      "color": (50, 220, 50)}
                                 )
                             else:
-                                # Flash vermelho de posicionamento inválido.
                                 state.death_flashes.append(
                                     {"x": click_x, "y": click_y, "timer": 0.3,
                                      "color": (230, 40, 40)}
@@ -603,6 +680,9 @@ def main() -> None:
                             daemon=True,
                         ).start()
                     state_manager.transition(GameScreen.VICTORY)
+                    # Valida sessão e concede TexasCoins (HMAC verifica integridade).
+                    player_profile.finalizar_sessao(state.sessao_nonce, state.tempo_vitoria)
+                    tc_ganho = texas_coins.GANHO_POR_MODO.get(state.modo_dificuldade, 0)
                     # Conquista por modo: desbloqueia e mostra banner se for nova.
                     conq_id = f"vitoria_{state.modo_dificuldade}"
                     nova = conquistas.desbloquear(conq_id)
@@ -612,12 +692,15 @@ def main() -> None:
                         if nova_hard2x:
                             nova = True
                             conq_id = "vitoria_hard_2x"
+                        tc_ganho = texas_coins.GANHO_POR_MODO.get("dificil_2x", tc_ganho)
                     current_screen = VictoryScreen(
                         ui_manager, state.kills, state.coins, victory_image,
                         tempo=state.tempo_vitoria,
                         nova_conquista=(
                             conquistas.CONQUISTAS_DEF.get(conq_id) if nova else None
                         ),
+                        modo=state.modo_dificuldade,
+                        tc_ganho=tc_ganho,
                     )
 
             elif state_manager.current in (GameScreen.GAME_OVER, GameScreen.VICTORY):
@@ -625,7 +708,9 @@ def main() -> None:
                 if acao == "retry":
                     current_screen.destroy()
                     current_screen = None
-                    reset_game(state.modo_dificuldade)  # mantém o modo da partida
+                    modo_anterior = state.modo_dificuldade
+                    reset_game(modo_anterior)
+                    diff_selector = DiffSelectorWidget(modo_inicial=modo_anterior)
                     state_manager.transition(GameScreen.PLAYING)
                 elif acao == "menu":
                     current_screen.destroy()
@@ -659,6 +744,9 @@ def main() -> None:
         if state_manager.current == GameScreen.PLAYING:
             _atualizar_jogo(dt_efetivo, state, waypoints, assets)
             _atualizar_skip(dt_efetivo, state)  # Skip/Auto-Skip durante a wave
+            # Cronômetro: só avança enquanto o jogo está ativo (pausa não conta).
+            if state.tempo_inicio > 0.0:
+                state.tempo_decorrido += dt
             card_hand.update(dt, to_render(pygame.mouse.get_pos()))  # hover (real)
 
             # Seletor de dificuldade in-game: ticker e aplicação ao timeout.
@@ -669,6 +757,8 @@ def main() -> None:
                     state.lives = MODOS_DIFICULDADE[modo_confirmado]["lives"]
                     state.wave_manager.modo = modo_confirmado
                     state.waves_congeladas = False
+                    if state.sessao_nonce is None:
+                        state.sessao_nonce = player_profile.iniciar_sessao(modo_confirmado)
                     diff_selector = None
 
             # Cronômetro: inicia no primeiro inimigo que entra em campo (onda 1).
@@ -689,7 +779,7 @@ def main() -> None:
                 audio.parar()
                 audio.iniciar_fundo()
                 state_manager.transition(GameScreen.GAME_OVER)
-                tempo_sobrev = (time.time() - state.tempo_inicio) if state.tempo_inicio > 0.0 else 0.0
+                tempo_sobrev = state.tempo_decorrido
                 current_screen = GameOverScreen(
                     ui_manager,
                     kills=state.kills,
@@ -711,7 +801,7 @@ def main() -> None:
                 audio.iniciar_fundo()
                 # Calcula o tempo total e pede o nome para o leaderboard.
                 if state.tempo_inicio > 0.0:
-                    state.tempo_vitoria = time.time() - state.tempo_inicio
+                    state.tempo_vitoria = state.tempo_decorrido
                 state_manager.transition(GameScreen.NOME_VITORIA)
                 # Busca record anterior para informar o jogador se não bateu.
                 _record_atual = leaderboard.buscar_record_proprio()
@@ -769,7 +859,7 @@ def main() -> None:
                 kills=state.kills,
                 speed_multiplier=state.speed_multiplier,
                 tempo_decorrido=(
-                    time.time() - state.tempo_inicio if state.tempo_inicio > 0 else None
+                    state.tempo_decorrido if state.tempo_inicio > 0 else None
                 ),
                 skip_disponivel=state.skip_disponivel,
                 skip_bonus=_skip_bonus(state),
@@ -794,6 +884,13 @@ def main() -> None:
             leaderboard_screen.draw(render_surface)
         if changelog_screen is not None:
             changelog_screen.draw(render_surface)
+
+        # Modal de confirmação de desligar 2×.
+        if state_manager.current == GameScreen.PLAYING and state.confirmando_desligar_2x:
+            _desenhar_confirmacao_2x(
+                render_surface, _conf_panel, _conf_sim_rect, _conf_nao_rect,
+                _fonte_conf_titulo, _fonte_conf,
+            )
 
         ui_manager.draw_ui(render_surface)
 
@@ -1132,13 +1229,7 @@ def _desenhar_preview(tela, state, grid, preview_surf: pygame.Surface) -> None:
         return
 
     tipo_sel = TOWER_TYPES[state.selected_card]
-    placeable = grid.is_placeable(mx, my)
-    # Verifica também sobreposição com torres existentes.
-    sem_sobreposicao = all(
-        (mx - t.x) ** 2 + (my - t.y) ** 2 > (2 * HIT_RADIUS) ** 2
-        for t in state.towers
-    )
-    valido = placeable and sem_sobreposicao
+    valido = grid.is_area_placeable(mx, my, tipo_sel.cell_radius)
     cor_rgb = COR_OVERLAY_VALIDO if valido else COR_OVERLAY_INVALIDO
 
     # Alcance "simbólico" (ex.: Speed7, habilidade global) não desenha círculo.

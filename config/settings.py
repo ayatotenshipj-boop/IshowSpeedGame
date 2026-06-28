@@ -33,7 +33,7 @@ RENDER_WIDTH: int = WINDOW_WIDTH
 RENDER_HEIGHT: int = WINDOW_HEIGHT
 
 # --- Grid ---
-CELL_SIZE: int = 64  # tamanho de cada célula do grid, em pixels
+CELL_SIZE: int = 48  # tamanho de cada célula do grid, em pixels
 
 # Raio de hitbox/colisão das torres no posicionamento livre por pixel.
 # Duas torres não podem ficar a menos de 2*HIT_RADIUS de distância (centro a
@@ -62,7 +62,7 @@ COR_GRID: tuple[int, int, int] = (90, 90, 90)       # cinza das linhas do grid
 COR_TEXTO: tuple[int, int, int] = (240, 240, 232)   # texto claro — --branco #f0f0e8
 
 # --- Economia / vida iniciais ---
-INITIAL_COINS: int = 400  # v1.2.1: economia rebalanceada (era 150)
+INITIAL_COINS: int = 9999  # v1.2.1: economia rebalanceada (era 150)
 INITIAL_LIVES: int = 10   # padrão do modo "normal"; cada modo redefine (Bloco 5)
 
 # --- Modos de dificuldade (v1.2.1) ---

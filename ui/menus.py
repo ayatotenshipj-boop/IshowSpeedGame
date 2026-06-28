@@ -6,6 +6,8 @@ próprio fundo/overlay e título com pygame puro. Único módulo, além da
 inicialização em main.py, que usa pygame_gui.
 """
 
+import subprocess
+
 import pygame
 import pygame_gui
 
@@ -29,10 +31,27 @@ from config.settings import (
     COR_BORDA_MODAL,
     COR_BORDA_MODAL_TOPO,
     COR_HUD_BORDA,
+    COR_VERDE_NEON,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
     FONTE_TITULO_PATH,
 )
+
+
+def _copiar_clipboard(texto: str) -> bool:
+    """Copia texto para área de transferência (Linux: wl-copy / xclip / xsel)."""
+    for cmd in (
+        ["wl-copy"],
+        ["xclip", "-selection", "clipboard"],
+        ["xsel", "--clipboard", "--input"],
+    ):
+        try:
+            subprocess.run(cmd, input=texto.encode(), check=True,
+                           timeout=2, capture_output=True)
+            return True
+        except Exception:
+            continue
+    return False
 from ui.conquistas_screen import ConquistasScreen
 
 # Dimensões padrão dos botões.
@@ -140,15 +159,17 @@ class ConfiguracoesScreen:
     HANDLE_R: int = 8
 
     def __init__(self, manager: pygame_gui.UIManager, audio=None) -> None:
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 22)  # header modal
-        self._fonte = pygame.font.SysFont("monospace", 18)                  # body / slider %
+        from core import player_profile as _pp
+        from ui.admin_panel import ADMIN_ID
+
+        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 22)
+        self._fonte = pygame.font.SysFont("monospace", 18)
         self._audio = audio
-        self._painel = pygame.Rect(0, 0, 600, 400)
+        self._painel = pygame.Rect(0, 0, 600, 490)
         self._painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
         self._overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         self._overlay.fill(COR_OVERLAY_MODAL)
 
-        # Trilha do slider, centralizada no painel.
         self._track = pygame.Rect(
             CENTRO_X - self.TRACK_W // 2,
             self._painel.y + 190,
@@ -157,13 +178,31 @@ class ConfiguracoesScreen:
         )
         self._dragging: bool = False
 
-        # Toggle de diálogos: estado em memória (sem disco no draw).
         from core import preferencias as _prefs
         self._prefs = _prefs
         self._dlg_on: bool = bool(_prefs.get("dialogo_habilitado"))
         self._fonte_peq = pygame.font.SysFont("monospace", 14)
-        # Rect clicável do toggle pill (abaixo do slider).
         self._toggle_rect = pygame.Rect(CENTRO_X - 24, self._painel.y + 280, 48, 26)
+
+        # Player ID (footer copiável)
+        self._player_id: str = _pp.get_player_id()
+        self._is_admin: bool = self._player_id == ADMIN_ID
+        self._copy_rect = pygame.Rect(
+            self._painel.right - 82, self._painel.y + 366, 72, 22
+        )
+        self._copiado: bool = False
+
+        # Botão admin (só visível ao dono)
+        if self._is_admin:
+            self.botao_admin: pygame_gui.elements.UIButton | None = (
+                pygame_gui.elements.UIButton(
+                    relative_rect=pygame.Rect(CENTRO_X - 90, self._painel.bottom - 140, 180, 40),
+                    text="PAINEL ADMIN",
+                    manager=manager,
+                )
+            )
+        else:
+            self.botao_admin = None
 
         self.botao_fechar = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(CENTRO_X - 90, self._painel.bottom - 80, 180, 50),
@@ -191,12 +230,13 @@ class ConfiguracoesScreen:
             self._audio.set_volume(frac * 0.7)
 
     def handle_event(self, event: pygame.event.Event) -> str | None:
-        """'close' ao fechar; arrasto do slider ajusta o volume (sem fechar)."""
+        """'close' ao fechar; 'admin' ao abrir painel admin; slider/toggle normais."""
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
             if event.ui_element == self.botao_fechar:
                 return "close"
+            if self.botao_admin and event.ui_element == self.botao_admin:
+                return "admin"
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            # Clique no handle ou em qualquer ponto da trilha captura o arrasto.
             hx, hy = self._handle_pos()
             sobre_handle = (event.pos[0] - hx) ** 2 + (event.pos[1] - hy) ** 2 <= (
                 self.HANDLE_R + 4
@@ -208,6 +248,9 @@ class ConfiguracoesScreen:
             elif self._toggle_rect.collidepoint(event.pos):
                 self._dlg_on = not self._dlg_on
                 self._prefs.set("dialogo_habilitado", self._dlg_on)
+            elif self._copy_rect.collidepoint(event.pos):
+                ok = _copiar_clipboard(self._player_id)
+                self._copiado = ok
         elif event.type == pygame.MOUSEMOTION and self._dragging:
             self._aplicar_de_x(event.pos[0])
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -263,9 +306,31 @@ class ConfiguracoesScreen:
         nota = self._fonte_peq.render("Exibir antes de cada partida", True, COR_LABEL_HUD)
         surface.blit(nota, (self._painel.x + 20, lbl_dlg_y + 44))
 
+        # ── Footer: player ID ──────────────────────────────────────────
+        div_y = self._painel.y + 326
+        pygame.draw.line(surface, COR_HUD_BORDA,
+                         (self._painel.x, div_y), (self._painel.right, div_y), 1)
+
+        lbl_pid = self._fonte_peq.render("PLAYER ID", True, COR_LABEL_HUD)
+        surface.blit(lbl_pid, (self._painel.x + 20, div_y + 10))
+
+        pid_surf = self._fonte_peq.render(self._player_id, True, COR_DOURADO)
+        surface.blit(pid_surf, (self._painel.x + 20, div_y + 28))
+
+        # Botão [COPIAR] / [✓ COPIADO]
+        cr = self._copy_rect
+        cor_copiar = COR_VERDE_NEON if self._copiado else COR_LABEL_HUD
+        txt_copiar = "COPIADO" if self._copiado else "COPIAR"
+        pygame.draw.rect(surface, (30, 30, 20), cr, border_radius=3)
+        pygame.draw.rect(surface, cor_copiar, cr, 1, border_radius=3)
+        cs = self._fonte_peq.render(txt_copiar, True, cor_copiar)
+        surface.blit(cs, cs.get_rect(center=cr.center))
+
     def destroy(self) -> None:
-        """Remove o botão Fechar do UIManager."""
+        """Remove botões do UIManager."""
         self.botao_fechar.kill()
+        if self.botao_admin:
+            self.botao_admin.kill()
 
 
 class MenuScreen:
@@ -364,11 +429,15 @@ class MenuScreen:
             return None
 
     def handle_event(self, event: pygame.event.Event) -> str | None:
-        """Retorna 'play'|'quit'|'update'|None. Conquistas/Multijogador abrem sub-painel."""
-        # Sub-painel aberto tem prioridade: só trata seu próprio Fechar.
+        """Retorna 'play'|'quit'|'update'|None. Sub-painéis têm prioridade."""
         if self._sub is not None:
-            if self._sub.handle_event(event) == "close":
+            resultado = self._sub.handle_event(event)
+            if resultado == "close":
                 self._fechar_sub()
+            elif resultado == "admin":
+                from ui.admin_panel import AdminPanel
+                self._sub.destroy()
+                self._sub = AdminPanel(self._manager)
             return None
 
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
@@ -605,11 +674,15 @@ class VictoryScreen(_EndScreen):
         victory_image: pygame.Surface | None = None,
         tempo: float = 0.0,
         nova_conquista: dict | None = None,
+        modo: str = "normal",
+        tc_ganho: int = 0,
     ) -> None:
         super().__init__(manager)
         self._kills = kills
         self._coins = coins
         self._tempo = tempo
+        self._modo = modo
+        self._tc_ganho = tc_ganho
         # Banner exibido só quando a vitória desbloqueou uma conquista NOVA.
         self._nova_conquista = nova_conquista
         # Surface cacheada para o banner de conquista (tamanho fixo 376×104)
@@ -670,7 +743,9 @@ class VictoryScreen(_EndScreen):
             ("MOEDAS", f"$ {self._coins}"),
         ]
         if self._tempo > 0:
-            stats += [("TEMPO", formatar_tempo(self._tempo)), ("MODO", "NORMAL")]
+            stats += [("TEMPO", formatar_tempo(self._tempo)), ("MODO", self._modo.upper())]
+        if self._tc_ganho > 0:
+            stats.append(("TEXASCOIN", f"+ {self._tc_ganho} TC"))
         grid_y = painel.y + 250
         grid_x = painel.x + 20
         col_w = (painel.width - 40) // 2

@@ -1,10 +1,10 @@
 {
-  "version": "1.3.5",
+  "version": "1.4.0",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "v1.3.5 - Update 1.3.5 com novas mudanças",
+  "changelog": "v1.4.0 - Sistema Administrativo, Ajustes de Grid e Melhorias de Interface\n\n[Novidades]\n- Adicionado sistema administrativo integrado à Store para gerenciamento de TexasCoins\n- Adicionado exibição do ganho de TexasCoin na tela de vitória\n- Adicionado footer nas configurações exibindo o Player_ID copiável\n\n[Torres - Buffs]\n- Corrigidos bugs de comportamento em diversas torres\n- Corrigidos problemas de posicionamento e colisão em algumas cartas\n- Corrigidos erros que impediam o funcionamento correto de determinadas torres\n- Ajustado o comportamento interno de algumas towers para melhorar a estabilidade\n\n[Visual / UI]\n- Melhorado o overlay de posicionamento das torres\n- Corrigidos falsos positivos visuais nas células do PATH\n- Melhorada a proporção visual do grid de posicionamento\n- Adicionado indicador visual de recompensa de TexasCoin na tela de vitória\n\n[Correções]\n- Corrigido problema de colisão e posicionamento inconsistente entre algumas cartas\n- Corrigido grid incorreto das cartas SayWallahi e KillThatBoy\n- Corrigido desalinhamento visual entre trilha PATH e células bloqueadas\n- Corrigido comportamento do overlay abaixo da área jogável do mapa\n- Restaurado comportamento original de hitbox e posicionamento das torres após testes",
   "download_url": {
-    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.3.5/SpeedVsLabubu-Linux",
-    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.3.5/SpeedVsLabubu-Windows.exe"
+    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.4.0/SpeedVsLabubu-Linux",
+    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.4.0/SpeedVsLabubu-Windows.exe"
   },
   "files": []
 }

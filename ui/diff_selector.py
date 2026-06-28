@@ -1,8 +1,12 @@
 """Widget de seleção de dificuldade in-game.
 
 Aparece no canto superior esquerdo do mapa por 10 segundos ao iniciar
-a partida. O jogador clica para escolher; após o timeout, a dificuldade
-selecionada (padrão: Normal) é confirmada e o widget desaparece.
+a partida. O jogador clica nos cards para SELECIONAR (sem fechar); confirma
+via "▶ INICIAR" (modo atual) ou "⚡ 2×" (dificil + velocidade 2×). Após
+o timeout, confirma o modo selecionado automaticamente.
+
+Aceita `modo_inicial` para pré-selecionar a dificuldade escolhida no
+SELECAO_MODO — assim o player chega com o card certo já destacado.
 
 Baseado em difficulty_selector_astd.html.
 """
@@ -32,24 +36,27 @@ _CARD_H   = 68
 _GAP      = 8
 _PAD      = 12
 _TITLE_H  = 22
+_BTN_H    = 24
 _DURATION = 10.0
 
 
 class DiffSelectorWidget:
     """Widget sutil de seleção de dificuldade. Visível por 10s."""
 
-    def __init__(self) -> None:
+    def __init__(self, modo_inicial: str = "normal") -> None:
         self.visible: bool = True
         self.timer: float = _DURATION
-        self.modo_selecionado: str = "normal"
+        self.modo_selecionado: str = modo_inicial if modo_inicial in _DIFS else "normal"
 
         self._fonte_label = pygame.font.Font(str(FONTE_TITULO_PATH), 14)
         self._fonte_sub   = pygame.font.SysFont("monospace", 11)
         self._fonte_title = pygame.font.SysFont("monospace", 11)
         self._fonte_cd    = pygame.font.SysFont("monospace", 11)
 
-        total_w = _PAD + len(_DIFS) * _CARD_W + (len(_DIFS) - 1) * _GAP + _PAD
-        total_h = _PAD + _TITLE_H + _GAP + _CARD_H + _PAD + 6  # +6 barra progresso
+        total_card_w = len(_DIFS) * _CARD_W + (len(_DIFS) - 1) * _GAP  # = 268
+        total_w = _PAD + total_card_w + _PAD
+        # Linha de botões (▶ INICIAR + ⚡ 2×) adicionada abaixo dos cards.
+        total_h = _PAD + _TITLE_H + _GAP + _CARD_H + _GAP + _BTN_H + _PAD + 6
 
         # Posição: canto superior esquerdo, abaixo da barra de HUD.
         x = MAP_RECT.x + 10
@@ -65,27 +72,43 @@ class DiffSelectorWidget:
                 cards_x + i * (_CARD_W + _GAP), cards_y, _CARD_W, _CARD_H
             )
 
-        # Botão "⚡ 2×": abaixo do card Difícil, visível apenas quando selecionado.
-        dificil_card = self._card_rects["dificil"]
-        self._btn_2x_rect = pygame.Rect(dificil_card.x, self._panel.bottom + 4, _CARD_W, 20)
+        # Linha de botões abaixo dos cards.
+        btns_y = cards_y + _CARD_H + _GAP
+        iniciar_w = _CARD_W * 2 + _GAP  # 176px — alinha com os 2 primeiros cards
+        self._btn_iniciar_rect = pygame.Rect(cards_x, btns_y, iniciar_w, _BTN_H)
+        self._btn_2x_rect = pygame.Rect(
+            cards_x + iniciar_w + _GAP, btns_y, _CARD_W, _BTN_H
+        )
 
         # Surface SRCALPHA reutilizada.
         self._overlay_surf = pygame.Surface(self._panel.size, pygame.SRCALPHA)
 
     # ── Input ────────────────────────────────────────────────────────────────
     def handle_click(self, pos: tuple[int, int]) -> str | None:
-        """Retorna o modo clicado ('facil'|'normal'|'dificil'|'dificil_2x') ou None."""
+        """Retorna modo confirmado ('facil'|'normal'|'dificil'|'dificil_2x') ou None.
+
+        Clicar nos cards só SELECIONA (não fecha o widget). Fechar acontece
+        ao clicar em "▶ INICIAR" ou "⚡ 2×", ou ao expirar o countdown.
+        """
         if not self.visible:
             return None
-        # Botão 2× aparece quando dificil já está selecionado.
+
+        # "⚡ 2×": confirma dificil com 2x (visível apenas quando dificil selecionado).
         if self.modo_selecionado == "dificil" and self._btn_2x_rect.collidepoint(pos):
             self.visible = False
             return "dificil_2x"
+
+        # "▶ INICIAR": confirma o modo atualmente selecionado.
+        if self._btn_iniciar_rect.collidepoint(pos):
+            self.visible = False
+            return self.modo_selecionado
+
+        # Cards: apenas atualizam a seleção, sem fechar o widget.
         for modo, rect in self._card_rects.items():
             if rect.collidepoint(pos):
                 self.modo_selecionado = modo
-                self.visible = False
-                return modo
+                return None  # sem fechar — player pode ainda clicar ⚡ 2×
+
         return None
 
     def update(self, dt: float) -> str | None:
@@ -156,15 +179,22 @@ class DiffSelectorWidget:
             sub = self._fonte_sub.render(info["sub"], True, COR_LABEL_HUD)
             surface.blit(sub, sub.get_rect(center=(rect.centerx, rect.centery + 14)))
 
-        # Botão "⚡ 2×" abaixo do card Difícil (visível quando dificil selecionado).
+        # Botão "▶ INICIAR" (sempre visível).
+        btn_i = self._btn_iniciar_rect
+        hover_i = btn_i.collidepoint(mx, my)
+        pygame.draw.rect(surface, (20, 50, 20) if hover_i else (10, 30, 10), btn_i)
+        pygame.draw.rect(surface, (50, 200, 80), btn_i, 1)
+        lbl_i = self._fonte_sub.render("▶ INICIAR", True, (80, 230, 100))
+        surface.blit(lbl_i, lbl_i.get_rect(center=btn_i.center))
+
+        # Botão "⚡ 2×" (visível apenas quando dificil selecionado).
         if self.modo_selecionado == "dificil":
-            btn = self._btn_2x_rect
-            hover_btn = btn.collidepoint(mx, my)
-            cor_btn = (70, 20, 8) if hover_btn else (50, 16, 8)
-            pygame.draw.rect(surface, cor_btn, btn)
-            pygame.draw.rect(surface, (190, 60, 30), btn, 1)
-            label_2x = self._fonte_sub.render("⚡ INICIAR EM 2×", True, (255, 200, 64))
-            surface.blit(label_2x, label_2x.get_rect(center=btn.center))
+            btn2 = self._btn_2x_rect
+            hover2 = btn2.collidepoint(mx, my)
+            pygame.draw.rect(surface, (70, 20, 8) if hover2 else (50, 16, 8), btn2)
+            pygame.draw.rect(surface, (190, 60, 30), btn2, 1)
+            lbl_2x = self._fonte_sub.render("⚡ 2×", True, (255, 200, 64))
+            surface.blit(lbl_2x, lbl_2x.get_rect(center=btn2.center))
 
         # Barra de progresso do countdown (fundo da barra).
         bar_y = p.bottom - 7

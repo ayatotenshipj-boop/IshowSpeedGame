@@ -39,6 +39,7 @@ class GameState:
     # spawn da onda 1; tempo_vitoria = duração total em segundos ao vencer.
     tempo_inicio: float = 0.0
     tempo_vitoria: float = 0.0
+    tempo_decorrido: float = 0.0  # segundos de jogo (pausa não conta)
     # Skip Wave reformulado (v1.2.0): o skip aparece 15–20s após o início de uma
     # wave ATIVA (não no intervalo) e dá 1/4 das recompensas restantes.
     skip_timer: float = 0.0        # tempo desde o início da wave ativa
@@ -53,3 +54,5 @@ class GameState:
     # Preferências por partida.
     dialogo_habilitado: bool = True
     iniciou_em_2x: bool = False  # True se 2x ativado antes da onda 1 no modo difícil
+    confirmando_desligar_2x: bool = False  # modal de confirmação ao desligar 2×
+    sessao_nonce: str | None = None  # nonce da sessão para validar award de TC

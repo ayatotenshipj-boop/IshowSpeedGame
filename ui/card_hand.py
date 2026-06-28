@@ -98,7 +98,7 @@ class CardHand:
         # Pré-renderiza nome e descrição já AJUSTADOS para caber na carta
         # (nomes longos como "KindaHomeless Speed" transbordavam). Estático por
         # tipo: calculado uma vez, sem custo por frame.
-        larg_nome = card_w - 56 - 6      # nome começa em x=56
+        larg_nome = card_w - 56 - 54     # nome começa em x=56; reserva ~54px p/ custo no canto direito
         larg_desc = card_w - 16          # descrição começa em x=8
         self._nome_surfs: list[pygame.Surface] = [
             self._render_texto_ajustado(t.nome, larg_nome, COR_TEXTO, 22, 11, bold=True)
@@ -267,12 +267,12 @@ class CardHand:
         # Stats em duas linhas (monospace).
         l1 = f"Dano:{tipo.damage}  Alc:{tipo.range_px}px"
         l2 = f"Cad:{tipo.fire_rate:.1f}/s  Custo:${tipo.cost}"
-        carta.blit(self._fonte_stats.render(l1, True, COLOR_CARD_STATS), (8, 47))
-        carta.blit(self._fonte_stats.render(l2, True, COLOR_CARD_STATS), (8, 59))
+        carta.blit(self._fonte_stats.render(l1, True, COLOR_CARD_STATS), (8, 48))
+        carta.blit(self._fonte_stats.render(l2, True, COLOR_CARD_STATS), (8, 62))
 
         # Descrição curta (itálico, já ajustada p/ caber).
         if desc_surf is not None:
-            carta.blit(desc_surf, (8, 72))
+            carta.blit(desc_surf, (8, 76))
 
         # Barra de slots (quantas torres deste tipo já estão no campo).
         slots_y = rect.height - SLOT_SIZE - 3
@@ -312,16 +312,19 @@ class CardHand:
         """
         piscando = (pygame.time.get_ticks() // 400) % 2 == 0
 
+        # Indicadores ficam em y=26 (abaixo do custo, antes das stats): [B] direita, [SKILL] esquerda.
+        # Não conflitam com nome (nome começa em x=56; [SKILL] fica em x=4-~54).
+        IND_Y = 26
         if any(getattr(t, "buff_active", False) for t in postas) and piscando:
             buff = self._fonte_ind.render("[B]", True, COR_BUFF_IND)
-            carta.blit(buff, (rect.width - buff.get_width() - 6, rect.height - 22))
+            carta.blit(buff, (rect.width - buff.get_width() - 6, IND_Y))
 
         # ability_used: None=sem habilidade; False=disponível; True=já usada.
         estados = [getattr(t, "ability_used", None) for t in postas]
         if any(e is False for e in estados):
             if piscando:
                 sk = self._fonte_ind.render("[SKILL]", True, COR_ROXO_IND)
-                carta.blit(sk, (4, rect.height - 22))
+                carta.blit(sk, (4, IND_Y))
         elif any(e is True for e in estados):
             sk = self._fonte_ind.render("[USADA]", True, COR_SKILL_USADA)
-            carta.blit(sk, (4, rect.height - 22))
+            carta.blit(sk, (4, IND_Y))

@@ -227,7 +227,7 @@ class Speed3(Tower):
     slow = False
     asset_name = "speed3"
     description = "Dano massivo. Alcance curto e lento."
-    cell_radius = 1  # torre grande: bloqueia área 3×3
+    cell_radius = 0
 
 
 class Speed4(Tower):
@@ -374,7 +374,7 @@ class Speed7(Tower):
     slow = False
     asset_name = "speed7"
     description = "Hitkill global. Uso único. Não vendável."
-    cell_radius = 1
+    cell_radius = 0
     max_no_campo = 1  # uso único por partida; só 1 no campo
 
     def __init__(self, assets, x: float, y: float, cell_x: int, cell_y: int) -> None:

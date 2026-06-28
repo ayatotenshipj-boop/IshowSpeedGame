@@ -213,6 +213,70 @@ def registrar_vitoria(nome: str, tempo_segundos: float) -> int | None:
     return None
 
 
+def _get_service_key() -> str:
+    """Chave service_role do Supabase, lida de ~/.config/speedvslabubu/admin_key.
+
+    Se ausente, retorna a anon key (ops de DELETE/UPDATE podem ser rejeitadas
+    pelo RLS). Coloque a service_role key no arquivo para acesso total via admin.
+    """
+    try:
+        key_path = _get_player_id_path().parent / "admin_key"
+        if key_path.exists():
+            k = key_path.read_text(encoding="utf-8").strip()
+            if k:
+                return k
+    except Exception:
+        pass
+    return SUPABASE_KEY
+
+
+def _admin_headers() -> dict:
+    key = _get_service_key()
+    return {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+
+
+def admin_deletar(player_id: str) -> bool:
+    """Remove entrada do leaderboard pelo player_id. Requer service_role key."""
+    url = f"{SUPABASE_URL}/rest/v1/{TABELA}?player_id=eq.{player_id}"
+    req = urllib.request.Request(url, headers=_admin_headers(), method="DELETE")
+    try:
+        with urllib.request.urlopen(req, timeout=5, context=_SSL_CTX) as resp:
+            return resp.status in (200, 204)
+    except urllib.error.HTTPError as e:
+        logger.warning("[Admin] Erro HTTP %s ao deletar: %s", e.code, e.read().decode())
+        return False
+    except Exception as e:
+        logger.warning("[Admin] Erro ao deletar: %s", e)
+        return False
+
+
+def admin_upsert(nome: str, tempo: float, player_id: str) -> bool:
+    """Insere ou atualiza entrada no leaderboard (conflict merge por player_id)."""
+    entrada = {
+        "nome": nome[:16].strip() or "Admin",
+        "tempo": round(float(tempo), 1),
+        "player_id": player_id,
+    }
+    headers = _admin_headers()
+    headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+    url = f"{SUPABASE_URL}/rest/v1/{TABELA}?on_conflict=player_id"
+    data = json.dumps(entrada).encode()
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=5, context=_SSL_CTX):
+            return True
+    except urllib.error.HTTPError as e:
+        logger.warning("[Admin] Erro HTTP %s ao upsert: %s", e.code, e.read().decode())
+        return False
+    except Exception as e:
+        logger.warning("[Admin] Erro ao upsert: %s", e)
+        return False
+
+
 def formatar_tempo(segundos: float) -> str:
     """Formata segundos como MM:SS.d (décimos)."""
     m = int(segundos) // 60
