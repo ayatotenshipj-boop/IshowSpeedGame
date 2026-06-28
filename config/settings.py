@@ -62,7 +62,7 @@ COR_GRID: tuple[int, int, int] = (90, 90, 90)       # cinza das linhas do grid
 COR_TEXTO: tuple[int, int, int] = (240, 240, 232)   # texto claro — --branco #f0f0e8
 
 # --- Economia / vida iniciais ---
-INITIAL_COINS: int = 9999  # v1.2.1: economia rebalanceada (era 150)
+INITIAL_COINS: int = 400  # v1.2.1: economia rebalanceada (era 150)
 INITIAL_LIVES: int = 10   # padrão do modo "normal"; cada modo redefine (Bloco 5)
 
 # --- Modos de dificuldade (v1.2.1) ---
