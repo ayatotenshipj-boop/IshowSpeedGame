@@ -1,10 +1,10 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "v1.4.0 - Sistema Administrativo, Ajustes de Grid e Melhorias de Interface\n\n[Novidades]\n- Melhorias gerais na experiência de jogo e na interface\n\n[Torres - Buffs]\n- SayWallahi e KillThatBoy agora ocupam apenas uma célula, tornando seu posicionamento mais intuitivo e consistente com as demais towers\n\n[Economia]\n- A tela de vitória agora exibe claramente a quantidade de TexasCoins obtida ao finalizar uma partida\n\n[Visual / UI]\n- Adicionado o Player ID nas configurações para facilitar compartilhamento, suporte e futuras funcionalidades online\n- Melhorias gerais na interface e na experiência de navegação dos menus\n\n[Correções]\n- Corrigidos diversos bugs em algumas towers\n- Corrigidos problemas de posicionamento de determinadas cartas\n- Melhorada a consistência do sistema de posicionamento das towers\n- Melhorada a estabilidade geral do jogo",
+  "changelog": "v1.5.0 — A Grande Atualização\n\n[Novo]\n- Modo Infinito: waves sem fim, boss a cada 10 waves, bônus escalável por wave\n- DrivingCar Speed (carta limitada): buffer +80/120% SPA com sistema de pity 120 pulls\n- Deck Builder: monte seu time antes da partida\n- SetPriority: escolha o alvo de cada torre (Primeiro/Último/Mais Forte/Mais Fraco)\n- Leaderboard com 3 categorias separadas: Normal, Difícil e Infinito\n- 5 novas conquistas do Modo Infinito (wave 10/20/30/40/50)\n\n[Correções]\n- Killthatboy, ShockedSpeed e Kindahomeless com Full AOE fixo\n- Inventário/deck corrigido: sem quantidade negativa, vender devolve carta\n- Pity da DrivingCarSpeed persiste entre sessões\n- Leaderboard não trava se Supabase estiver offline\n- Spawn usa delta time (sem aceleração estranha em máquinas rápidas)\n- Ancelotti não pode morrer duas vezes\n- Buff de SPA revertido ao vender DrivingCarSpeed com skill ativa",
   "download_url": {
-    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.4.0/SpeedVsLabubu-Linux",
-    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.4.0/SpeedVsLabubu-Windows.exe"
+    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.0/SpeedVsLabubu-Linux",
+    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.0/SpeedVsLabubu-Windows.exe"
   },
   "files": []
 }
