@@ -40,6 +40,10 @@ from config.settings import (
     ALPHA_OVERLAY_GLOBAL,
     ALPHA_OVERLAY_HOVER,
     COR_MAP_GRAYSCALE,
+    COLOR_GOLD,
+    COR_TEXTO,
+    COR_BANNER_FUNDO,
+    COR_BANNER_DESC,
 )
 from core.asset_manager import AssetManager
 from core.audio import AudioManager
@@ -48,6 +52,7 @@ from core.state_manager import GameScreen, StateManager
 from core.updater import Updater
 from core import conquistas, leaderboard, player_profile, preferencias, texas_coins
 from entities.boss import Ancelotti
+from entities.infinite_wave_manager import InfiniteWaveManager
 from entities.tower import SPRITE_SIZE, TOWER_TYPES, Speed5, Speed7
 from entities.wave_manager import WAVES
 from map.game_map import GameMap
@@ -61,6 +66,7 @@ from ui.changelog_screen import (
 )
 from ui.diff_selector import DiffSelectorWidget
 from ui.hud import HUD
+from ui.deck_builder_screen import DeckBuilderScreen
 from ui.lobby_screen import LobbyScreen
 from ui.intro_scene import IntroScene
 from ui.leaderboard_screen import LeaderboardScreen
@@ -311,7 +317,7 @@ def main() -> None:
 
     # Recursos persistentes (não dependem da partida).
     game_map = GameMap(assets)
-    card_hand = CardHand(assets)
+    card_hand = CardHand(assets, _tipos_para_partida())
     hud = HUD()
     tower_panel = TowerPanel()
     fonte_dev = pygame.font.SysFont(None, 16)
@@ -374,16 +380,22 @@ def main() -> None:
         O modo de dificuldade (Bloco 5) define as vidas iniciais e os
         multiplicadores aplicados pelo WaveManager na criação dos inimigos.
         """
-        nonlocal state, grid
+        nonlocal state, grid, card_hand
         state = GameState()
         state.modo_dificuldade = modo
         state.lives = MODOS_DIFICULDADE[modo]["lives"]
+        if modo == "infinito":
+            state.wave_manager = InfiniteWaveManager()
+            state.waves_congeladas = False  # infinito começa imediatamente
+        else:
+            state.wave_manager.modo = modo
+            # Waves congeladas até o seletor de dificuldade confirmar o modo.
+            state.waves_congeladas = True
         state.wave_manager.assets = assets
-        state.wave_manager.modo = modo
-        # Waves congeladas até o seletor de dificuldade confirmar o modo.
-        state.waves_congeladas = True
         grid = PlacementGrid()
-        card_hand.deselect()
+        # Recria a mão de cartas refletindo o deck e inventário atuais — garante
+        # que DrivingCarSpeed apareça se adquirida/equipada durante a sessão.
+        card_hand = CardHand(assets, _tipos_para_partida())
 
     def _talvez_abrir_changelog() -> None:
         """Abre o changelog automaticamente UMA vez por versão, sobre o menu."""
@@ -488,30 +500,28 @@ def main() -> None:
                         current_screen = None
                         state_manager.transition(GameScreen.PLAYING)
                         diff_selector = DiffSelectorWidget()
+                elif acao == "infinito":
+                    # Infinito: sem intro, sem seletor de dificuldade.
+                    current_screen.destroy()
+                    reset_game("infinito")
+                    current_screen = None
+                    state_manager.transition(GameScreen.PLAYING)
+                elif acao == "deck":
+                    current_screen.destroy()
+                    current_screen = DeckBuilderScreen(assets)
+                    state_manager.transition(GameScreen.DECK_BUILDER)
                 elif acao == "voltar":
                     current_screen.destroy()
                     current_screen = MenuScreen(ui_manager, assets, audio)
                     state_manager.transition(GameScreen.MENU)
                     _talvez_abrir_changelog()
 
-            elif state_manager.current == GameScreen.SELECAO_MODO:
+            elif state_manager.current == GameScreen.DECK_BUILDER:
                 acao = current_screen.handle_event(evento)
-                if acao == "voltar":
-                    # Volta ao menu principal sem iniciar partida.
+                if acao == "fechar":
                     current_screen.destroy()
-                    current_screen = MenuScreen(ui_manager, assets, audio)
-                    state_manager.transition(GameScreen.MENU)
-                elif acao in MODOS_DIFICULDADE:
-                    # Modo escolhido: prepara a partida e exibe a intro.
-                    current_screen.destroy()
-                    reset_game(acao)
-                    if preferencias.get("dialogo_habilitado"):
-                        current_screen = IntroScene(assets)
-                        state_manager.transition(GameScreen.INTRO)
-                    else:
-                        current_screen = None
-                        state_manager.transition(GameScreen.PLAYING)
-                        diff_selector = DiffSelectorWidget(modo_inicial=acao)
+                    current_screen = LobbyScreen(ui_manager, assets)
+                    state_manager.transition(GameScreen.LOBBY)
 
             elif state_manager.current == GameScreen.PLAYING:
                 if evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
@@ -608,7 +618,7 @@ def main() -> None:
                                     # Toggle: clicar na carta já selecionada deseleciona.
                                     card_hand.deselect()
                                     state.selected_card = None
-                                elif state.coins >= TOWER_TYPES[idx].cost:
+                                elif state.coins >= card_hand.tipos[idx].cost:
                                     card_hand.select(idx)
                                     state.selected_card = idx
                             # Clique no HUD fora de qualquer carta: não faz nada.
@@ -628,7 +638,7 @@ def main() -> None:
                             )
                         elif MAP_RECT.collidepoint(pos) and state.selected_card is not None:
                             idx = state.selected_card
-                            tipo = TOWER_TYPES[idx]
+                            tipo = card_hand.tipos[idx]
                             click_x, click_y = pos
                             cx, cy = grid.pixel_to_cell(click_x, click_y)
                             n_tipo = sum(1 for t in state.towers if type(t) is tipo)
@@ -672,10 +682,42 @@ def main() -> None:
                 resultado = current_screen.handle_event(evento)
                 if resultado is not None:
                     current_screen.destroy()
+                    if state.modo_dificuldade == "infinito":
+                        # Infinito: registra waves e vai para game over (sem vitória).
+                        if resultado:
+                            waves_final = state.infinite_waves_completadas
+                            threading.Thread(
+                                target=lambda nome=resultado, w=waves_final: leaderboard.registrar_infinite_waves(
+                                    nome, w
+                                ),
+                                daemon=True,
+                            ).start()
+                        state_manager.transition(GameScreen.GAME_OVER)
+                        current_screen = GameOverScreen(
+                            ui_manager,
+                            kills=state.kills,
+                            coins=state.coins,
+                            lives=0,
+                            onda_atual=state.infinite_waves_completadas,
+                            onda_total=0,
+                            tempo=state.tempo_decorrido,
+                            modo="INFINITO",
+                        )
+                        continue
+
                     if resultado:  # nome digitado: registra a vitória em thread
+                        _MODO_PARA_CATEGORIA: dict[str, str] = {
+                            "facil":      "normal_speedrun",
+                            "normal":     "normal_speedrun",
+                            "dificil":    "hard_speedrun",
+                            "dificil_2x": "hard_speedrun",
+                        }
+                        category = _MODO_PARA_CATEGORIA.get(
+                            state.modo_dificuldade, "normal_speedrun"
+                        )
                         threading.Thread(
-                            target=lambda nome=resultado: leaderboard.registrar_vitoria(
-                                nome, state.tempo_vitoria
+                            target=lambda nome=resultado, cat=category: leaderboard.registrar_vitoria(
+                                nome, state.tempo_vitoria, cat
                             ),
                             daemon=True,
                         ).start()
@@ -710,8 +752,11 @@ def main() -> None:
                     current_screen = None
                     modo_anterior = state.modo_dificuldade
                     reset_game(modo_anterior)
-                    diff_selector = DiffSelectorWidget(modo_inicial=modo_anterior)
-                    state_manager.transition(GameScreen.PLAYING)
+                    if modo_anterior == "infinito":
+                        state_manager.transition(GameScreen.PLAYING)
+                    else:
+                        diff_selector = DiffSelectorWidget(modo_inicial=modo_anterior)
+                        state_manager.transition(GameScreen.PLAYING)
                 elif acao == "menu":
                     current_screen.destroy()
                     audio.parar()
@@ -773,24 +818,44 @@ def main() -> None:
                     state.speed7_effect_timer = 0.0
                     _encerrar_efeito_speed7(state, assets, audio)
 
+            # Tracking de waves completadas e bônus no modo infinito.
+            if state.modo_dificuldade == "infinito":
+                _processar_bonus_onda_infinita(state)
+
+            # Timer do banner de conquista (exibido por 4s ao desbloquear).
+            if state.conquista_banner_timer > 0.0:
+                state.conquista_banner_timer -= dt
+                if state.conquista_banner_timer <= 0.0:
+                    state.conquista_banner = None
+                    state.conquista_banner_timer = 0.0
+
             # Checa derrota.
             if state.lives <= 0:
                 # Restaura música de fundo (corta o loop de suspense do Speed7).
                 audio.parar()
                 audio.iniciar_fundo()
-                state_manager.transition(GameScreen.GAME_OVER)
-                tempo_sobrev = state.tempo_decorrido
-                current_screen = GameOverScreen(
-                    ui_manager,
-                    kills=state.kills,
-                    coins=state.coins,
-                    lives=0,
-                    onda_atual=state.wave,
-                    onda_total=len(WAVES),
-                    tempo=tempo_sobrev,
-                    modo=state.modo_dificuldade.upper(),
-                )
+                if state.modo_dificuldade == "infinito":
+                    # Infinito: pede nome para o leaderboard antes de mostrar game over.
+                    state_manager.transition(GameScreen.NOME_VITORIA)
+                    current_screen = NomeVitoriaScreen(
+                        ui_manager, state.tempo_decorrido, record_anterior=None,
+                        waves_infinito=state.infinite_waves_completadas,
+                    )
+                else:
+                    state_manager.transition(GameScreen.GAME_OVER)
+                    tempo_sobrev = state.tempo_decorrido
+                    current_screen = GameOverScreen(
+                        ui_manager,
+                        kills=state.kills,
+                        coins=state.coins,
+                        lives=0,
+                        onda_atual=state.wave,
+                        onda_total=len(WAVES),
+                        tempo=tempo_sobrev,
+                        modo=state.modo_dificuldade.upper(),
+                    )
             # Checa vitória (ondas concluídas, sem inimigos e boss derrotado).
+            # Infinito nunca passa nessa condição (is_finished() sempre False).
             elif (
                 state.wave_manager.is_finished()
                 and not state.enemies
@@ -839,7 +904,7 @@ def main() -> None:
                 # Hitboxes circulares das torres existentes (dourado) + hitbox do cursor.
                 _desenhar_hitboxes_torres(render_surface, state.towers)
                 # Preview de range (verde=válido, vermelho=inválido) sob o cursor.
-                _desenhar_preview(render_surface, state, grid, preview_surf)
+                _desenhar_preview(render_surface, state, grid, preview_surf, card_hand)
             # Painel da torre selecionada (status, upgrade, venda).
             if (
                 state_manager.current == GameScreen.PLAYING
@@ -848,14 +913,23 @@ def main() -> None:
                 state.selected_tower.draw_range(render_surface)
                 tower_panel.draw(render_surface, state.selected_tower, state.coins)
             card_hand.draw(render_surface, state.coins, state.towers)
+            _modo_inf = state.modo_dificuldade == "infinito"
+            _prox_boss: int | None = None
+            if _modo_inf and isinstance(state.wave_manager, InfiniteWaveManager):
+                _prox_boss = state.wave_manager.proxima_boss_wave(state.wave)
             hud.draw(
                 render_surface,
                 state.coins,
                 state.lives,
                 state.wave,
                 state.wave_manager.time_to_next_wave(),
-                total_waves=len(WAVES),
-                boss_wave=(state.wave == len(WAVES)),
+                total_waves=(0 if _modo_inf else len(WAVES)),
+                boss_wave=(
+                    state.wave_manager.anuncio_ativo
+                    and state.wave_manager.anuncio_wave_num % 10 == 0
+                    if _modo_inf and isinstance(state.wave_manager, InfiniteWaveManager)
+                    else state.wave == len(WAVES)
+                ),
                 kills=state.kills,
                 speed_multiplier=state.speed_multiplier,
                 tempo_decorrido=(
@@ -864,6 +938,8 @@ def main() -> None:
                 skip_disponivel=state.skip_disponivel,
                 skip_bonus=_skip_bonus(state),
                 auto_skip=state.auto_skip,
+                modo_infinito=_modo_inf,
+                prox_boss_wave=_prox_boss,
             )
             # Seletor de dificuldade in-game (se visível).
             if (
@@ -875,6 +951,10 @@ def main() -> None:
             # Tooltip da carta sob o cursor (apenas em jogo, por cima de tudo).
             if state_manager.current == GameScreen.PLAYING:
                 card_hand.draw_tooltip(render_surface)
+
+            # Banner de conquista desbloqueada (modo infinito) — por cima do jogo.
+            if state_manager.current == GameScreen.PLAYING and state.conquista_banner is not None:
+                _desenhar_banner_conquista_ingame(render_surface, state.conquista_banner)
 
         if current_screen is not None:
             current_screen.draw(render_surface)
@@ -907,6 +987,33 @@ def main() -> None:
     pygame.quit()
 
 
+def _tipos_para_partida() -> list:
+    """Lista de tipos de torre ativos na partida — respeita deck e inventário gacha.
+
+    - Deck configurado: usa a ordem do deck, filtrando torres não desbloqueadas.
+    - Deck vazio: todos os 6 padrões (exclui DrivingCarSpeed, que é gacha-only).
+    DrivingCarSpeed só aparece se o jogador tiver o item no inventário.
+    """
+    from entities.driving_car_speed import DrivingCarSpeed
+
+    tem_dcs = texas_coins.ITEM_DRIVING_CAR_SPEED in texas_coins.get_itens()
+    deck = texas_coins.get_deck()
+    base = [t for t in TOWER_TYPES if t is not DrivingCarSpeed]
+
+    if not deck:
+        return base
+
+    resultado: list = []
+    for asset_name in deck:
+        tipo = next((t for t in TOWER_TYPES if t.asset_name == asset_name), None)
+        if tipo is None:
+            continue
+        if tipo is DrivingCarSpeed and not tem_dcs:
+            continue
+        resultado.append(tipo)
+    return resultado if resultado else base
+
+
 def _processar_acao_painel(acao: str, state: GameState, grid, assets, audio) -> None:
     """Executa a ação escolhida no painel da torre selecionada."""
     torre = state.selected_tower
@@ -919,6 +1026,10 @@ def _processar_acao_painel(acao: str, state: GameState, grid, assets, audio) -> 
             if state.coins >= custo:
                 state.coins -= custo
                 torre.apply_upgrade(custo)
+    elif acao == "activate_skill":
+        from entities.driving_car_speed import DrivingCarSpeed
+        if isinstance(torre, DrivingCarSpeed):
+            torre.activate_skill(state.towers)
     elif acao == "buff":
         if isinstance(torre, Speed5):
             torre.activate_buff()
@@ -930,6 +1041,10 @@ def _processar_acao_painel(acao: str, state: GameState, grid, assets, audio) -> 
         # com ability_used=False, burlando o uso-único da habilidade global.
         if isinstance(torre, Speed7):
             return
+        # Reverter buff ativo antes de vender DrivingCarSpeed.
+        from entities.driving_car_speed import DrivingCarSpeed
+        if isinstance(torre, DrivingCarSpeed) and getattr(torre, "skill_ativa", False):
+            torre._desativar_skill()
         state.coins += torre.sell_refund()
         if torre in state.towers:
             state.towers.remove(torre)
@@ -937,6 +1052,12 @@ def _processar_acao_painel(acao: str, state: GameState, grid, assets, audio) -> 
         state.selected_tower = None
     elif acao == "close":
         state.selected_tower = None
+    elif acao == "priority":
+        # Cicla para o próximo critério de prioridade (exclui ONLY, reservado).
+        from entities.target_priority import TargetPriority
+        prioridades = [p for p in TargetPriority if p != TargetPriority.ONLY]
+        idx_atual = prioridades.index(torre.priority)
+        torre.priority = prioridades[(idx_atual + 1) % len(prioridades)]
 
 
 def _ativar_habilidade_speed7(state: GameState, assets, audio) -> None:
@@ -1218,7 +1339,7 @@ def _desenhar_hitboxes_torres(tela: pygame.Surface, towers: list) -> None:
         tela.blit(surf, (cx - raio - 2, cy - raio - 2))
 
 
-def _desenhar_preview(tela, state, grid, preview_surf: pygame.Surface) -> None:
+def _desenhar_preview(tela, state, grid, preview_surf: pygame.Surface, card_hand) -> None:
     """Círculo de range da torre selecionada, centrado no cursor.
 
     Verde se a posição está livre para posicionamento; vermelho se bloqueada
@@ -1228,7 +1349,7 @@ def _desenhar_preview(tela, state, grid, preview_surf: pygame.Surface) -> None:
     if not MAP_RECT.collidepoint(mx, my):
         return
 
-    tipo_sel = TOWER_TYPES[state.selected_card]
+    tipo_sel = card_hand.tipos[state.selected_card]
     valido = grid.is_area_placeable(mx, my, tipo_sel.cell_radius)
     cor_rgb = COR_OVERLAY_VALIDO if valido else COR_OVERLAY_INVALIDO
 
@@ -1268,6 +1389,62 @@ def _atualizar_cursor(state_manager, state, card_hand) -> None:
         _definir_cursor(pygame.SYSTEM_CURSOR_HAND)
     else:
         _definir_cursor(pygame.SYSTEM_CURSOR_ARROW)
+
+
+def _processar_bonus_onda_infinita(state: GameState) -> None:
+    """Detecta conclusão de wave no modo infinito e credita o bônus.
+
+    Chamada a cada frame durante PLAYING em modo infinito. A wave é considerada
+    concluída quando o spawn terminou (wave_active=False) e todos os inimigos
+    foram eliminados (enemies vazia). O bônus é creditado uma única vez por wave.
+    """
+    from entities.wave_scaler import calcular_bonus_wave
+    wm = state.wave_manager
+    if not isinstance(wm, InfiniteWaveManager):
+        return
+    if wm.wave_active or state.enemies:
+        return
+    if wm.current_wave <= 0:
+        return
+    waves_agora = wm.current_wave
+    if waves_agora > state.infinite_waves_completadas:
+        bonus = calcular_bonus_wave(waves_agora)
+        state.coins += bonus
+        state.infinite_waves_completadas = waves_agora
+        logger.info(
+            "[Infinito] Wave %d completa. Bônus: +%d TexasCoins.", waves_agora, bonus
+        )
+        # Conquistas progressivas — verifica todos os limiares <= waves_agora
+        # (retroativo: se waves_agora=30, desbloqueia 10 e 20 também se inéditas).
+        _LIMIARES_INFINITO = [
+            (10, "inf_wave_10"),
+            (20, "inf_wave_20"),
+            (30, "inf_wave_30"),
+            (40, "inf_wave_40"),
+            (50, "inf_wave_50"),
+        ]
+        for limiar, cid in _LIMIARES_INFINITO:
+            if waves_agora >= limiar and conquistas.desbloquear(cid):
+                state.conquista_banner = conquistas.CONQUISTAS_DEF[cid]
+                state.conquista_banner_timer = 4.0
+                logger.info("[Conquista] Desbloqueada: %s", cid)
+
+
+def _desenhar_banner_conquista_ingame(surface: pygame.Surface, conquista: dict) -> None:
+    """Toast dourado (376×104) no canto superior direito ao desbloquear conquista."""
+    box = pygame.Rect(WINDOW_WIDTH - 396, 20, 376, 104)
+    fundo = pygame.Surface((376, 104), pygame.SRCALPHA)
+    fundo.fill(COR_BANNER_FUNDO)
+    surface.blit(fundo, box.topleft)
+    pygame.draw.rect(surface, COLOR_GOLD, box, 3, border_radius=10)
+    f_titulo = AssetManager.get_font("font_body", 28)
+    f_desc = AssetManager.get_font("font_body", 24)
+    titulo = f_titulo.render("CONQUISTA DESBLOQUEADA!", True, COLOR_GOLD)
+    surface.blit(titulo, (box.x + 16, box.y + 12))
+    nome = f_titulo.render(f'"{conquista["nome"]}"', True, COR_TEXTO)
+    surface.blit(nome, (box.x + 16, box.y + 44))
+    desc = f_desc.render(conquista["descricao"], True, COR_BANNER_DESC)
+    surface.blit(desc, (box.x + 16, box.y + 74))
 
 
 if __name__ == "__main__":

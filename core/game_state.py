@@ -56,3 +56,7 @@ class GameState:
     iniciou_em_2x: bool = False  # True se 2x ativado antes da onda 1 no modo difícil
     confirmando_desligar_2x: bool = False  # modal de confirmação ao desligar 2×
     sessao_nonce: str | None = None  # nonce da sessão para validar award de TC
+    infinite_waves_completadas: int = 0  # última wave totalmente limpa no modo infinito
+    # Banner de conquista desbloqueada (modo infinito): dict da conquista ou None.
+    conquista_banner: dict | None = None
+    conquista_banner_timer: float = 0.0  # segundos restantes de exibição do banner

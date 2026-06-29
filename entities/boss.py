@@ -99,12 +99,15 @@ class Ancelotti(Enemy):
             self.speed = self._speed_base * 1.4
             logger.debug("[Ancelotti] Fase de fúria ativada (HP=%d)", self.hp)
 
-        pode_invocar = self.stun_timer <= 0.0
-        if pode_invocar and (self._fury or self.mui_spawn_timer <= 0.0):
-            spawn = self._criar_spawn(assets, waypoints)
-            if not self._fury:
+        nao_stunnado = self.stun_timer <= 0.0
+        if nao_stunnado:
+            if self._fury:
+                # Fúria: chance por hit (sem timer).
+                if random.random() < self.MUI_CHANCE:
+                    return self._criar_spawn(assets, waypoints)
+            elif self.mui_spawn_timer <= 0.0:
                 self.mui_spawn_timer = 2.5
-            return spawn
+                return self._criar_spawn(assets, waypoints)
         return None
 
     def _criar_spawn(self, assets, waypoints: list[dict]) -> "Labubu4":

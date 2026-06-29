@@ -95,6 +95,14 @@ MODOS_DIFICULDADE: dict[str, dict] = {
         "lives": 6,          # poucas vidas
         "descricao": "Para quem domina o jogo",
     },
+    "infinito": {
+        "nome": "Infinito",
+        "hp_mult": 1.0,      # scaling feito pelo InfiniteWaveManager
+        "speed_mult": 1.0,
+        "reward_mult": 1.0,
+        "lives": 10,
+        "descricao": "Sobreviva o máximo de ondas possível",
+    },
 }
 
 # --- Cartas e HUD ---
@@ -118,6 +126,30 @@ KILLTHATBOY_DURATION: float = 1.0  # corte do killthatboy.mp3 (segundos)
 # --- Fontes customizadas ---
 FONTS_DIR: Path = ASSETS_DIR / "fonts"
 FONTE_TITULO_PATH: Path = FONTS_DIR / "BebasNeue.ttf"
+FONTE_ORBITRON_BOLD_PATH: Path = FONTS_DIR / "Orbitron-Bold.ttf"
+FONTE_ORBITRON_REGULAR_PATH: Path = FONTS_DIR / "Orbitron-Regular.ttf"
+FONTE_PRESSSTART_PATH: Path = FONTS_DIR / "PressStart2P-Regular.ttf"
+ICONS_DIR: Path = ASSETS_DIR / "icons"
+
+# --- Tamanhos de fonte por papel (px) ---
+FONT_SIZE_TITLE: int = 48      # Bebas Neue — títulos de tela
+FONT_SIZE_GAMEOVER: int = 72   # Bebas Neue — game over / vitória
+FONT_SIZE_HUD: int = 22        # Orbitron Bold — valores numéricos do HUD
+FONT_SIZE_BODY: int = 16       # Orbitron Regular — textos de descrição
+FONT_SIZE_RETRO: int = 14      # PressStart2P — elementos retrô / alertas
+FONT_SIZE_SMALL: int = 12      # Orbitron Regular — labels pequenos
+
+# --- Tamanhos de ícone por contexto (px) ---
+ICON_SIZE_HUD: tuple[int, int] = (24, 24)    # ícones da barra de HUD
+ICON_SIZE_PANEL: tuple[int, int] = (20, 20)  # ícones do tower panel
+ICON_SIZE_STORE: tuple[int, int] = (28, 28)  # ícones da store
+ICON_SIZE_BOARD: tuple[int, int] = (32, 32)  # ícones do leaderboard
+
+# --- Margem mínima de UI entre elementos adjacentes (px) ---
+UI_MARGIN: int = 8
+
+# --- Tower panel ---
+PANEL_WIDTH: int = 280   # largura máxima do painel de upgrade/inspeção de torre
 
 # ═══════════════════════════════════════════
 # PALETA VISUAL — Speed Vs Labubu Remake
@@ -235,3 +267,24 @@ COR_BRONZE           = (205, 127, 50)      # posição 3 no leaderboard
 COR_MEDALHA_LENDA    = (200, 80, 200)      # conquista difícil (roxo lenda)
 COR_BLOQUEADA        = (90, 90, 100)       # conquista bloqueada
 COR_OVERLAY_LB       = (0, 0, 0, 190)     # overlay do painel de leaderboard
+
+# --- Deck Builder ---
+DECK_SLOTS: int = 7   # número de slots no deck ativo do jogador
+
+# Painel de upgrade/inspeção de torre (extraído de speedvslabubu_ui_v2.html .modal-painel)
+UPGRADE_BG_COLOR       = (10, 10, 6)       # #0a0a06 — fundo do modal
+UPGRADE_BORDA_COLOR    = (42, 40, 0)       # #2a2800 — borda do modal
+UPGRADE_TEXT_SECONDARY = (68, 68, 48)      # #444430 — labels secundários
+UPGRADE_BTN_BG         = (22, 20, 3)       # #161403 — fundo de botão
+UPGRADE_BTN_BORDA      = (55, 50, 8)       # #373208 — borda de botão
+
+# --- Modo Infinito ---
+INF_BOSS_WAVE_INTERVAL: int = 10       # boss a cada N waves
+INF_BOSS_HP_FATOR: float = 1.4        # HP boss = base × (1.4 ^ n_boss)
+INF_VEL_FATOR: float = 0.015          # velocidade += 1.5% por wave
+INF_VEL_CAP_MULT: float = 2.5         # cap de velocidade em 2.5× da base
+INF_QTD_CAP: int = 40                 # máximo de inimigos por wave
+INF_REWARD_CAP_WAVE: int = 100        # scaling de recompensa para após wave 100
+INF_INTERVAL: float = 3.0             # segundos de respiro entre waves
+INF_ANUNCIO_DURATION: float = 2.0     # duração do banner "WAVE N" em segundos
+COR_INF_BADGE: tuple[int, int, int] = (220, 60, 60)   # badge [INFINITO] no HUD

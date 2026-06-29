@@ -9,6 +9,7 @@ inicialização em main.py, que usa pygame_gui.
 import subprocess
 
 import pygame
+from core.asset_manager import AssetManager
 import pygame_gui
 
 from config.settings import (
@@ -32,9 +33,9 @@ from config.settings import (
     COR_BORDA_MODAL_TOPO,
     COR_HUD_BORDA,
     COR_VERDE_NEON,
+    COR_VERMELHO,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
-    FONTE_TITULO_PATH,
 )
 
 
@@ -75,7 +76,7 @@ class _EmBreveScreen:
     titulo: str = ""
 
     def __init__(self, manager: pygame_gui.UIManager) -> None:
-        self._fonte_titulo = pygame.font.SysFont(None, 48)
+        self._fonte_titulo = AssetManager.get_font("font_title", 48)
         self._painel = pygame.Rect(0, 0, 600, 400)
         self._painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
         self._overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
@@ -113,8 +114,8 @@ class MultijogadorScreen(_EmBreveScreen):
 
     def __init__(self, manager: pygame_gui.UIManager) -> None:
         super().__init__(manager)
-        self._fonte_header = pygame.font.Font(str(FONTE_TITULO_PATH), 22)
-        self._fonte_corpo = pygame.font.SysFont("monospace", 18)
+        self._fonte_header = AssetManager.get_font("font_title", 22)
+        self._fonte_corpo = AssetManager.get_font("font_body", 18)
 
     def draw(self, surface: pygame.Surface) -> None:
         """Painel modal com conteúdo 'Em breve'."""
@@ -162,10 +163,10 @@ class ConfiguracoesScreen:
         from core import player_profile as _pp
         from ui.admin_panel import ADMIN_ID
 
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 22)
-        self._fonte = pygame.font.SysFont("monospace", 18)
+        self._fonte_titulo = AssetManager.get_font("font_title", 22)
+        self._fonte = AssetManager.get_font("font_body", 18)
         self._audio = audio
-        self._painel = pygame.Rect(0, 0, 600, 490)
+        self._painel = pygame.Rect(0, 0, 600, 560)
         self._painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)
         self._overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         self._overlay.fill(COR_OVERLAY_MODAL)
@@ -181,16 +182,30 @@ class ConfiguracoesScreen:
         from core import preferencias as _prefs
         self._prefs = _prefs
         self._dlg_on: bool = bool(_prefs.get("dialogo_habilitado"))
-        self._fonte_peq = pygame.font.SysFont("monospace", 14)
+        self._fonte_peq = AssetManager.get_font("font_body", 14)
         self._toggle_rect = pygame.Rect(CENTRO_X - 24, self._painel.y + 280, 48, 26)
 
         # Player ID (footer copiável)
         self._player_id: str = _pp.get_player_id()
         self._is_admin: bool = self._player_id == ADMIN_ID
         self._copy_rect = pygame.Rect(
-            self._painel.right - 82, self._painel.y + 366, 72, 22
+            self._painel.right - 82, self._painel.y + 436, 72, 22
         )
         self._copiado: bool = False
+
+        # Seção de código promo
+        self._promo_entry = pygame_gui.elements.UITextEntryLine(
+            relative_rect=pygame.Rect(self._painel.x + 20, self._painel.y + 340, 340, 34),
+            manager=manager,
+            placeholder_text="Digite o código",
+        )
+        self.botao_resgatar = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(self._painel.x + 372, self._painel.y + 340, 180, 34),
+            text="RESGATAR",
+            manager=manager,
+        )
+        self._promo_msg: str = ""
+        self._promo_ok: bool = False
 
         # Botão admin (só visível ao dono)
         if self._is_admin:
@@ -236,6 +251,23 @@ class ConfiguracoesScreen:
                 return "close"
             if self.botao_admin and event.ui_element == self.botao_admin:
                 return "admin"
+            if event.ui_element == self.botao_resgatar:
+                from core import texas_coins
+                codigo = self._promo_entry.get_text()
+                r = texas_coins.resgatar_codigo(codigo)
+                if r.get("ok"):
+                    self._promo_msg = f"+{r['tc']} TC resgatado! Saldo: {r['saldo']}"
+                    self._promo_ok = True
+                    self._promo_entry.set_text("")
+                elif r.get("erro") == "ja_usado":
+                    self._promo_msg = "Código já utilizado."
+                    self._promo_ok = False
+                elif r.get("erro") == "arquivo_ausente":
+                    self._promo_msg = "Sistema de códigos indisponível."
+                    self._promo_ok = False
+                else:
+                    self._promo_msg = "Código inválido."
+                    self._promo_ok = False
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             hx, hy = self._handle_pos()
             sobre_handle = (event.pos[0] - hx) ** 2 + (event.pos[1] - hy) ** 2 <= (
@@ -306,8 +338,19 @@ class ConfiguracoesScreen:
         nota = self._fonte_peq.render("Exibir antes de cada partida", True, COR_LABEL_HUD)
         surface.blit(nota, (self._painel.x + 20, lbl_dlg_y + 44))
 
+        # --- Seção: código promo ---
+        promo_lbl_y = self._painel.y + 316
+        pygame.draw.line(surface, COR_HUD_BORDA,
+                         (self._painel.x, promo_lbl_y - 8), (self._painel.right, promo_lbl_y - 8), 1)
+        lbl_promo = self._fonte_peq.render("CÓDIGO PROMO", True, COR_LABEL_HUD)
+        surface.blit(lbl_promo, (self._painel.x + 20, promo_lbl_y))
+        if self._promo_msg:
+            cor_msg = COR_VERDE_NEON if self._promo_ok else COR_VERMELHO
+            msg_surf = self._fonte_peq.render(self._promo_msg, True, cor_msg)
+            surface.blit(msg_surf, (self._painel.x + 20, promo_lbl_y + 80))
+
         # ── Footer: player ID ──────────────────────────────────────────
-        div_y = self._painel.y + 326
+        div_y = self._painel.y + 396
         pygame.draw.line(surface, COR_HUD_BORDA,
                          (self._painel.x, div_y), (self._painel.right, div_y), 1)
 
@@ -329,6 +372,8 @@ class ConfiguracoesScreen:
     def destroy(self) -> None:
         """Remove botões do UIManager."""
         self.botao_fechar.kill()
+        self.botao_resgatar.kill()
+        self._promo_entry.kill()
         if self.botao_admin:
             self.botao_admin.kill()
 
@@ -339,7 +384,7 @@ class MenuScreen:
     def __init__(self, manager: pygame_gui.UIManager, assets=None, audio=None) -> None:
         self._manager = manager
         self._audio = audio
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 110)
+        self._fonte_titulo = AssetManager.get_font("font_title", 110)
 
         # Fundo: mapa escurecido (ou fundo neutro se ausente).
         self._bg: pygame.Surface | None = None
@@ -510,7 +555,7 @@ class PauseScreen:
     """Overlay de pause semi-transparente sobre o jogo."""
 
     def __init__(self, manager: pygame_gui.UIManager) -> None:
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 72)
+        self._fonte_titulo = AssetManager.get_font("font_title", 72)
         self._overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         self._overlay.fill(COR_OVERLAY_PAUSE)
         self.botao_continuar = pygame_gui.elements.UIButton(
@@ -551,7 +596,7 @@ class _EndScreen:
     cor_titulo: tuple[int, int, int] = COR_TEXTO
 
     def __init__(self, manager: pygame_gui.UIManager) -> None:
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 96)
+        self._fonte_titulo = AssetManager.get_font("font_title", 96)
         self.botao_retry = pygame_gui.elements.UIButton(
             relative_rect=_rect_centralizado(360),
             text="JOGAR NOVAMENTE",
@@ -610,10 +655,10 @@ class GameOverScreen(_EndScreen):
         self._onda_total = onda_total
         self._tempo = tempo
         self._modo = modo.upper()
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 80)
-        self._fonte_msg = pygame.font.SysFont("monospace", 36)
-        self._fonte_ph = pygame.font.SysFont("monospace", 22)
-        self._fonte_sub = pygame.font.SysFont("monospace", 22)
+        self._fonte_titulo = AssetManager.get_font("font_title", 80)
+        self._fonte_msg = AssetManager.get_font("font_body", 36)
+        self._fonte_ph = AssetManager.get_font("font_body", 22)
+        self._fonte_sub = AssetManager.get_font("font_body", 22)
         # Repositiona botões para dentro do painel (painel height=620, center y=360)
         self.botao_retry.set_relative_position((CENTRO_X - BTN_W // 2, 490))
         self.botao_menu.set_relative_position((CENTRO_X - BTN_W // 2, 558))
@@ -633,8 +678,9 @@ class GameOverScreen(_EndScreen):
         titulo = self._fonte_titulo.render(self.titulo, True, self.cor_titulo)
         surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, painel.y + 50)))
 
+        total_str = "∞" if self._onda_total == 0 else str(self._onda_total)
         sub = self._fonte_sub.render(
-            f"Onda {self._onda_atual}/{self._onda_total}  ·  {self._modo}", True, COR_LABEL_HUD
+            f"Onda {self._onda_atual}/{total_str}  ·  {self._modo}", True, COR_LABEL_HUD
         )
         surface.blit(sub, sub.get_rect(center=(CENTRO_X, painel.y + 100)))
 
@@ -688,11 +734,11 @@ class VictoryScreen(_EndScreen):
         # Surface cacheada para o banner de conquista (tamanho fixo 376×104)
         self._banner_surf = pygame.Surface((376, 104), pygame.SRCALPHA)
         self._banner_surf.fill(COR_BANNER_FUNDO)
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 80)
-        self._fonte_msg = pygame.font.SysFont("monospace", 38)
-        self._fonte_sub = pygame.font.SysFont("monospace", 28)
-        self._fonte_stats = pygame.font.SysFont("monospace", 32)
-        self._fonte_ph = pygame.font.SysFont("monospace", 24)
+        self._fonte_titulo = AssetManager.get_font("font_title", 80)
+        self._fonte_msg = AssetManager.get_font("font_body", 38)
+        self._fonte_sub = AssetManager.get_font("font_body", 28)
+        self._fonte_stats = AssetManager.get_font("font_body", 32)
+        self._fonte_ph = AssetManager.get_font("font_body", 24)
 
         # Imagem de vitória escalada para caber na área (ou None → placeholder).
         self._img: pygame.Surface | None = None

@@ -13,6 +13,7 @@ para ocupar o mesmo slot `current_screen` do loop principal.
 import logging
 
 import pygame
+from core.asset_manager import AssetManager
 
 from config.settings import (
     COLOR_GOLD, WINDOW_HEIGHT, WINDOW_WIDTH,
@@ -83,9 +84,9 @@ class IntroScene:
         self._fade_timer: float = 0.0
 
         # Fontes (monospace para o efeito retro).
-        self._fonte_nome = pygame.font.SysFont("monospace", 24, bold=True)
-        self._fonte_texto = pygame.font.SysFont("monospace", 18)
-        self._fonte_hint = pygame.font.SysFont("monospace", 16)
+        self._fonte_nome = AssetManager.get_font("font_hud", 24)
+        self._fonte_texto = AssetManager.get_font("font_body", 18)
+        self._fonte_hint = AssetManager.get_font("font_body", 16)
         # Surfaces cacheadas
         self._escuro_surf = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         self._escuro_surf.fill(COR_INTRO_ESCURO)

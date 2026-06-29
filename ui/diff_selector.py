@@ -12,6 +12,7 @@ Baseado em difficulty_selector_astd.html.
 """
 
 import pygame
+from core.asset_manager import AssetManager
 
 from config.settings import (
     COLOR_GOLD,
@@ -19,7 +20,6 @@ from config.settings import (
     COR_FUNDO_MODAL,
     COR_LABEL_HUD,
     COR_TEXTO,
-    FONTE_TITULO_PATH,
     MAP_RECT,
 )
 from ui.hud import TOP_BAR_HEIGHT
@@ -48,10 +48,10 @@ class DiffSelectorWidget:
         self.timer: float = _DURATION
         self.modo_selecionado: str = modo_inicial if modo_inicial in _DIFS else "normal"
 
-        self._fonte_label = pygame.font.Font(str(FONTE_TITULO_PATH), 14)
-        self._fonte_sub   = pygame.font.SysFont("monospace", 11)
-        self._fonte_title = pygame.font.SysFont("monospace", 11)
-        self._fonte_cd    = pygame.font.SysFont("monospace", 11)
+        self._fonte_label = AssetManager.get_font("font_title", 14)
+        self._fonte_sub   = AssetManager.get_font("font_body", 11)
+        self._fonte_title = AssetManager.get_font("font_body", 11)
+        self._fonte_cd    = AssetManager.get_font("font_body", 11)
 
         total_card_w = len(_DIFS) * _CARD_W + (len(_DIFS) - 1) * _GAP  # = 268
         total_w = _PAD + total_card_w + _PAD

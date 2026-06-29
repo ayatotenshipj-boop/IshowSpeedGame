@@ -1,11 +1,49 @@
+# Build e empacotamento (PyInstaller)
 __pycache__/
 *.pyc
 *.pyo
+*$py.class
 dist/
 build/
 *.spec
-*.log
+
+# Dados sensíveis — NUNCA commitar
 .env
+.env.*
+!.env.example
+*.key
+*.pem
+# secrets.py genérico na raiz (config/secrets.py é seguro — tem só anon key pública)
+/secrets.py
+# Códigos promo: nunca commitar (usar codigos_promo.json.example como referência)
+config/codigos_promo.json
+
+# Resíduos de editor e SO
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs e dados de runtime
+*.log
+logs/
+*.sqlite
+*.db
+
+# Dependências Python
 .build-venv/
 venv/
 .venv/
+env/
+*.egg-info/
+.eggs/
+
+# Assets temporários e cache
+*.tmp
+*.bak
+*.orig
+assets/cache/

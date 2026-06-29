@@ -6,6 +6,7 @@ e o download, e usa `UpdateResultScreen` para o resultado final.
 """
 
 import pygame
+from core.asset_manager import AssetManager
 
 from config.settings import (
     COLOR_GOLD,
@@ -19,7 +20,6 @@ from config.settings import (
     COR_HUD_BORDA,
     COR_DOURADO,
     COR_LABEL_HUD,
-    FONTE_TITULO_PATH,
 )
 
 CENTRO_X: int = WINDOW_WIDTH // 2
@@ -30,7 +30,7 @@ class UpdateCheckScreen:
     """Tela "Verificando atualizações..." com reticências animadas."""
 
     def __init__(self) -> None:
-        self._fonte = pygame.font.SysFont(None, 48)
+        self._fonte = AssetManager.get_font("font_title", 48)
 
     def draw(self, surface: pygame.Surface) -> None:
         """Fundo preto + texto centralizado com 0–3 pontos piscando."""
@@ -47,9 +47,9 @@ class UpdateProgressScreen:
     BAR_H: int = 36
 
     def __init__(self, nova_versao: str | None = None) -> None:
-        self._fonte_titulo = pygame.font.SysFont(None, 56, bold=True)
-        self._fonte = pygame.font.SysFont(None, 32)
-        self._fonte_peq = pygame.font.SysFont(None, 26)
+        self._fonte_titulo = AssetManager.get_font("font_title", 56)
+        self._fonte = AssetManager.get_font("font_title", 32)
+        self._fonte_peq = AssetManager.get_font("font_title", 26)
         self._nova_versao = nova_versao
 
     def draw(
@@ -115,9 +115,9 @@ class UpdateResultScreen:
         self._tipo = result_type
         self._version = version
         self._changelog = changelog
-        self._fonte_header = pygame.font.Font(str(FONTE_TITULO_PATH), 22)
-        self._fonte = pygame.font.SysFont("monospace", 20)
-        self._fonte_peq = pygame.font.SysFont("monospace", 15)
+        self._fonte_header = AssetManager.get_font("font_title", 22)
+        self._fonte = AssetManager.get_font("font_body", 20)
+        self._fonte_peq = AssetManager.get_font("font_body", 15)
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         """Retorna True quando o jogador fecha (clique ou qualquer tecla)."""

@@ -5,6 +5,7 @@ pygame_gui para o campo de texto e botões; fundo/títulos em Pygame puro.
 """
 
 import pygame
+from core.asset_manager import AssetManager
 import pygame_gui
 
 from config.settings import COLOR_GOLD, COLOR_HUD_BG, COR_TEXTO, WINDOW_HEIGHT, WINDOW_WIDTH
@@ -25,15 +26,17 @@ class NomeVitoriaScreen:
         manager: pygame_gui.UIManager,
         tempo: float,
         record_anterior: dict | None = None,
+        waves_infinito: int | None = None,
     ) -> None:
         self._manager = manager
         self._tempo = tempo
         self._record_anterior = record_anterior  # {'nome': ..., 'tempo': ...} | None
+        self._waves_infinito = waves_infinito    # None = modo normal/hard; int = modo infinito
 
-        self._fonte_titulo = pygame.font.SysFont(None, 96, bold=True)
-        self._fonte_tempo  = pygame.font.SysFont(None, 52)
-        self._fonte_label  = pygame.font.SysFont(None, 36)
-        self._fonte_aviso  = pygame.font.SysFont(None, 30)
+        self._fonte_titulo = AssetManager.get_font("font_title", 96)
+        self._fonte_tempo  = AssetManager.get_font("font_title", 52)
+        self._fonte_label  = AssetManager.get_font("font_title", 36)
+        self._fonte_aviso  = AssetManager.get_font("font_title", 30)
 
         # Novo record?
         self._novo_record = (
@@ -76,13 +79,20 @@ class NomeVitoriaScreen:
     def draw(self, surface: pygame.Surface) -> None:
         surface.fill(COLOR_HUD_BG)
 
-        titulo = self._fonte_titulo.render("VOCÊ ZEROU!", True, COLOR_GOLD)
-        surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, CENTRO_Y - 170)))
-
-        tempo_txt = self._fonte_tempo.render(
-            f"Tempo: {formatar_tempo(self._tempo)}", True, COR_CIANO
-        )
-        surface.blit(tempo_txt, tempo_txt.get_rect(center=(CENTRO_X, CENTRO_Y - 100)))
+        if self._waves_infinito is not None:
+            titulo = self._fonte_titulo.render("MODO INFINITO", True, COLOR_GOLD)
+            surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, CENTRO_Y - 170)))
+            stat_txt = self._fonte_tempo.render(
+                f"Waves completadas: {self._waves_infinito}", True, COR_CIANO
+            )
+            surface.blit(stat_txt, stat_txt.get_rect(center=(CENTRO_X, CENTRO_Y - 100)))
+        else:
+            titulo = self._fonte_titulo.render("VOCÊ ZEROU!", True, COLOR_GOLD)
+            surface.blit(titulo, titulo.get_rect(center=(CENTRO_X, CENTRO_Y - 170)))
+            tempo_txt = self._fonte_tempo.render(
+                f"Tempo: {formatar_tempo(self._tempo)}", True, COR_CIANO
+            )
+            surface.blit(tempo_txt, tempo_txt.get_rect(center=(CENTRO_X, CENTRO_Y - 100)))
 
         # Record anterior (se existe).
         if self._record_anterior:

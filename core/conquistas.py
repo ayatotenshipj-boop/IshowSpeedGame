@@ -35,6 +35,32 @@ CONQUISTAS_DEF: dict[str, dict] = {
         "descricao": "Zerou no Difícil com velocidade 2x ativada",
         "icone": "⚡",
     },
+    # Categoria: Modo Infinito
+    "inf_wave_10": {
+        "nome": "Só começando",
+        "descricao": "Sobreviveu até a wave 10 no Modo Infinito",
+        "icone": "🌀",
+    },
+    "inf_wave_20": {
+        "nome": "Pegando o ritmo",
+        "descricao": "Sobreviveu até a wave 20 no Modo Infinito",
+        "icone": "🌀",
+    },
+    "inf_wave_30": {
+        "nome": "Sem parar",
+        "descricao": "Sobreviveu até a wave 30 no Modo Infinito",
+        "icone": "🌀",
+    },
+    "inf_wave_40": {
+        "nome": "Isso é sério",
+        "descricao": "Sobreviveu até a wave 40 no Modo Infinito",
+        "icone": "🌀",
+    },
+    "inf_wave_50": {
+        "nome": "Lendário",
+        "descricao": "Sobreviveu até a wave 50 no Modo Infinito",
+        "icone": "🏆",
+    },
 }
 
 

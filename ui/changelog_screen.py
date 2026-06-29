@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import pygame
+from core.asset_manager import AssetManager
 import pygame_gui
 
 from config.settings import (
@@ -24,7 +25,6 @@ from config.settings import (
     COR_HUD_BORDA,
     COR_LABEL_HUD,
     COR_VERMELHO,
-    FONTE_TITULO_PATH,
     RAIZ_PROJETO,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
@@ -112,12 +112,12 @@ class ChangelogScreen:
         self.versao = versao
 
         # Fontes
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 24)
-        self._fonte_versao = pygame.font.Font(str(FONTE_TITULO_PATH), 22)
-        self._fonte_secao  = pygame.font.SysFont("liberationsans", 13, bold=True)
-        self._fonte_item   = pygame.font.SysFont("monospace", 14)
-        self._fonte_data   = pygame.font.SysFont("monospace", 12)
-        self._fonte_x      = pygame.font.SysFont("liberationsans", 18, bold=True)
+        self._fonte_titulo = AssetManager.get_font("font_title", 24)
+        self._fonte_versao = AssetManager.get_font("font_title", 22)
+        self._fonte_secao  = AssetManager.get_font("font_hud", 13)
+        self._fonte_item   = AssetManager.get_font("font_body", 14)
+        self._fonte_data   = AssetManager.get_font("font_body", 12)
+        self._fonte_x      = AssetManager.get_font("font_hud", 18)
 
         # Posição do painel
         self._painel = pygame.Rect(0, 0, self.PAINEL_W, self.PAINEL_H)

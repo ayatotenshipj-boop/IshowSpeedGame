@@ -7,6 +7,7 @@ bloqueadas não revelam nome nem descrição ("???").
 """
 
 import pygame
+from core.asset_manager import AssetManager
 import pygame_gui
 
 from config.settings import (
@@ -15,7 +16,6 @@ from config.settings import (
     COR_BRONZE, COR_MEDALHA_LENDA, COR_BLOQUEADA,
     COR_BORDA_MODAL, COR_BORDA_MODAL_TOPO, COR_HUD_BORDA,
     COR_DOURADO, COR_DOURADO_ESCURO, COR_LABEL_HUD,
-    FONTE_TITULO_PATH,
 )
 from core import conquistas
 
@@ -34,9 +34,9 @@ class ConquistasScreen:
     """Painel central com as conquistas e seu estado de desbloqueio."""
 
     def __init__(self, manager: pygame_gui.UIManager) -> None:
-        self._fonte_header = pygame.font.Font(str(FONTE_TITULO_PATH), 22)  # modal header
-        self._fonte_nome = pygame.font.Font(str(FONTE_TITULO_PATH), 20)   # conquista nome
-        self._fonte_desc = pygame.font.SysFont("monospace", 15)  # conquista desc
+        self._fonte_header = AssetManager.get_font("font_title", 22)  # modal header
+        self._fonte_nome = AssetManager.get_font("font_title", 20)   # conquista nome
+        self._fonte_desc = AssetManager.get_font("font_body", 15)  # conquista desc
 
         self._painel = pygame.Rect(0, 0, 640, 460)
         self._painel.center = (CENTRO_X, WINDOW_HEIGHT // 2)

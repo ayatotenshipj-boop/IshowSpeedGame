@@ -8,6 +8,7 @@ Estado 'store': painel centralizado com gacha de TexasCoin.
 """
 
 import pygame
+from core.asset_manager import AssetManager
 import pygame_gui
 
 from config.settings import (
@@ -21,7 +22,6 @@ from config.settings import (
     COR_TEXTO,
     COR_VERDE_NEON,
     COR_VERMELHO,
-    FONTE_TITULO_PATH,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
 )
@@ -55,17 +55,18 @@ class LobbyScreen:
 
     def __init__(self, manager: pygame_gui.UIManager, assets=None) -> None:
         self._manager = manager
+        self._assets = assets
         self._estado: str = "main"
         self._resultado_roll: dict | None = None
         self._sub = None   # MultijogadorScreen overlay
         self._mouse_pos: tuple[int, int] = (0, 0)
 
-        self._fonte_big   = pygame.font.Font(str(FONTE_TITULO_PATH), 52)
-        self._fonte_hdr   = pygame.font.Font(str(FONTE_TITULO_PATH), 28)
-        self._fonte_card  = pygame.font.Font(str(FONTE_TITULO_PATH), 36)
-        self._fonte_body  = pygame.font.SysFont("monospace", 14)
-        self._fonte_label = pygame.font.SysFont("monospace", 12)
-        self._fonte_coin  = pygame.font.Font(str(FONTE_TITULO_PATH), 28)
+        self._fonte_big   = AssetManager.get_font("font_title", 52)
+        self._fonte_hdr   = AssetManager.get_font("font_title", 28)
+        self._fonte_card  = AssetManager.get_font("font_title", 36)
+        self._fonte_body  = AssetManager.get_font("font_body", 14)
+        self._fonte_label = AssetManager.get_font("font_body", 12)
+        self._fonte_coin  = AssetManager.get_font("font_title", 28)
 
         # Fundo: mapa escurecido
         self._bg: pygame.Surface | None = None
@@ -102,14 +103,18 @@ class LobbyScreen:
         )
         self.btn_infinito = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(_MODE_BTN_X, y0 + gap, _MODE_BTN_W, _MODE_BTN_H),
-            text="INFINITO  —  EM BREVE",
+            text="INFINITO",
             manager=manager,
         )
-        self.btn_infinito.disable()
 
         self.btn_multi = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(_MODE_BTN_X, y0 + gap * 2, _MODE_BTN_W, _MODE_BTN_H),
             text="MULTIJOGADOR",
+            manager=manager,
+        )
+        self.btn_deck = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(_MODE_BTN_X, y0 + gap * 3, _MODE_BTN_W, _MODE_BTN_H),
+            text="GERENCIAR DECK",
             manager=manager,
         )
 
@@ -141,11 +146,11 @@ class LobbyScreen:
     # ── Estado ───────────────────────────────────────────────────────────────
     def _aplicar_estado(self, estado: str) -> None:
         self._estado = estado
-        for b in (self.btn_casual, self.btn_infinito, self.btn_multi,
+        for b in (self.btn_casual, self.btn_infinito, self.btn_multi, self.btn_deck,
                   self.btn_roll_1x, self.btn_roll_10x):
             b.hide()
         if estado == "modos":
-            for b in (self.btn_casual, self.btn_infinito, self.btn_multi):
+            for b in (self.btn_casual, self.btn_infinito, self.btn_multi, self.btn_deck):
                 b.show()
         elif estado == "store":
             self._atualizar_btns_roll()
@@ -192,6 +197,10 @@ class LobbyScreen:
                 return None
             if event.ui_element == self.btn_casual:
                 return "casual"
+            if event.ui_element == self.btn_infinito:
+                return "infinito"
+            if event.ui_element == self.btn_deck:
+                return "deck"
             if event.ui_element == self.btn_multi:
                 from ui.menus import MultijogadorScreen
                 self._sub = MultijogadorScreen(self._manager)
@@ -277,7 +286,7 @@ class LobbyScreen:
 
         descs = [
             "Experiencia completa com selecao de dificuldade.",
-            "Ondas infinitas — em breve!",
+            "Sobreviva o maximo de ondas possivel.",
             "Enfrente outros jogadores — em breve!",
         ]
         y0 = _SUB_Y + 80
@@ -301,7 +310,8 @@ class LobbyScreen:
     def _draw_store(self, surface: pygame.Surface) -> None:
         saldo = texas_coins.get_saldo()
         itens = texas_coins.get_itens()
-        tem_item = texas_coins.PLACEHOLDER_ITEM in itens
+        pity = texas_coins.get_pity_counter()
+        tem_dcs = texas_coins.ITEM_DRIVING_CAR_SPEED in itens
         p = self._draw_painel_sub(surface, "STORE")
 
         # Saldo
@@ -315,44 +325,77 @@ class LobbyScreen:
 
         # Caixa de gacha
         gx, gy = p.x + _PAD, p.y + 116
-        gw, gh = p.width - _PAD * 2, 170
+        gw, gh = p.width - _PAD * 2, 200
         pygame.draw.rect(surface, (22, 20, 5), pygame.Rect(gx, gy, gw, gh))
         pygame.draw.rect(surface, (55, 46, 8), pygame.Rect(gx, gy, gw, gh), 1)
         pygame.draw.line(surface, (90, 70, 10), (gx, gy), (gx + gw, gy), 2)
 
-        g_title = self._fonte_body.render("SPEED GACHA  [ PLACEHOLDER ]", True, COLOR_GOLD)
+        g_title = self._fonte_body.render("SPEED GACHA  —  DrivingCar Speed", True, COLOR_GOLD)
         surface.blit(g_title, (gx + _PAD, gy + 10))
         chance_lbl = self._fonte_label.render(
-            f"Chance: 0.2% por roll  |  Itens obtidos: {len(itens)}/1",
+            "Chance: 0.2% por roll  |  Pity: garantia em 120 pulls  (=1200 TC)",
             True, COR_LABEL_HUD,
         )
         surface.blit(chance_lbl, (gx + _PAD, gy + 28))
 
+        # Slot com sprite speed9
         slot = pygame.Rect(gx + _PAD, gy + 50, 72, 72)
         pygame.draw.rect(surface, (34, 28, 6), slot)
         pygame.draw.rect(surface, (80, 66, 14), slot, 1)
-        if tem_item:
-            ok = self._fonte_label.render("OBTIDO!", True, COR_VERDE_NEON)
+        if tem_dcs:
+            ok = self._fonte_label.render("OBTIDA!", True, COR_VERDE_NEON)
             surface.blit(ok, ok.get_rect(center=slot.center))
+        elif self._assets is not None:
+            try:
+                sprite = pygame.transform.smoothscale(self._assets.get("speed9"), (56, 56))
+                surface.blit(sprite, sprite.get_rect(center=slot.center))
+            except (KeyError, Exception):
+                q = self._fonte_body.render("???", True, COR_LABEL_HUD)
+                surface.blit(q, q.get_rect(center=slot.center))
         else:
             q = self._fonte_body.render("???", True, COR_LABEL_HUD)
             surface.blit(q, q.get_rect(center=slot.center))
 
+        # Info da carta
+        info_x = gx + _PAD + 80
         for i, (txt, cor) in enumerate([
-            ("Speed Placeholder", COR_TEXTO),
-            ("Um personagem misterioso...", COR_LABEL_HUD),
-            ("(Sistema em construcao)", (50, 50, 50)),
+            ("DrivingCar Speed", COR_TEXTO),
+            ("Tipo: Buffer · Limitado ★", COR_LABEL_HUD),
+            ("Skill ativavel: +80% SPA (120% max)", COR_LABEL_HUD),
+            ("Stacking: Nao  |  Dano: Nenhum", (50, 50, 50)),
         ]):
             s = self._fonte_label.render(txt, True, cor)
-            surface.blit(s, (gx + _PAD + 80, gy + 50 + i * 18))
+            surface.blit(s, (info_x, gy + 50 + i * 18))
+
+        # Barra de pity
+        pity_y = gy + 130
+        if tem_dcs:
+            pity_txt = self._fonte_label.render("Ja obtida  ✓", True, COR_VERDE_NEON)
+            surface.blit(pity_txt, (gx + _PAD, pity_y))
+        else:
+            pity_lbl = self._fonte_label.render(
+                f"Pity: {pity}/{texas_coins.PITY_LIMITE} pulls", True, COR_LABEL_HUD
+            )
+            surface.blit(pity_lbl, (gx + _PAD, pity_y))
+            bar_rect = pygame.Rect(gx + _PAD, pity_y + 16, gw - _PAD * 2, 10)
+            pygame.draw.rect(surface, (40, 36, 10), bar_rect)
+            fill_w = int(bar_rect.width * min(pity / texas_coins.PITY_LIMITE, 1.0))
+            if fill_w > 0:
+                cor_barra = COLOR_GOLD if pity >= texas_coins.PITY_LIMITE * 0.8 else (120, 90, 20)
+                pygame.draw.rect(surface, cor_barra,
+                                 pygame.Rect(bar_rect.x, bar_rect.y, fill_w, bar_rect.height))
+            pygame.draw.rect(surface, (80, 66, 14), bar_rect, 1)
 
         if self._resultado_roll is not None:
             r = self._resultado_roll
             if "erro" in r:
                 msg, cor = "Saldo insuficiente!", COR_VERMELHO
             elif r.get("ganhos"):
-                msg = f"GANHOU! '{r['ganhos'][0]}' adicionado!"
-                cor = COR_VERDE_NEON
+                ganho = r["ganhos"][0]
+                if ganho == texas_coins.ITEM_DRIVING_CAR_SPEED:
+                    msg, cor = "GANHOU DrivingCar Speed!", COR_VERDE_NEON
+                else:
+                    msg, cor = f"GANHOU! '{ganho}' adicionado!", COR_VERDE_NEON
             else:
                 gasto = r.get("gasto", 0)
                 n = gasto // texas_coins.PRECO_1X
@@ -362,7 +405,7 @@ class LobbyScreen:
             surface.blit(res, (gx + _PAD, gy + gh - 16))
 
         # Preço abaixo dos botões de roll
-        preco_y = _SUB_Y + 300 + 46 + 10
+        preco_y = _SUB_Y + 330 + 46 + 10
         preco_txt = self._fonte_label.render(
             "1x = 10 TC  |  10x = 100 TC  (0.2% de chance por roll)",
             True, COR_LABEL_HUD,
@@ -370,15 +413,15 @@ class LobbyScreen:
         surface.blit(preco_txt, preco_txt.get_rect(centerx=p.centerx, y=preco_y))
 
         # Inventário
-        inv_y = _SUB_Y + 390
+        inv_y = _SUB_Y + 420
         pygame.draw.line(surface, COR_HUD_BORDA, (p.x, inv_y - 8), (p.right, inv_y - 8), 1)
         inv_hdr = self._fonte_label.render("INVENTARIO GACHA", True, COR_LABEL_HUD)
         surface.blit(inv_hdr, (p.x + _PAD, inv_y))
-        if itens:
-            for i, item in enumerate(itens):
-                s = self._fonte_label.render(f"  + {item}", True, COR_VERDE_NEON)
-                surface.blit(s, (p.x + _PAD, inv_y + 18 + i * 18))
-        else:
+        itens_visiveis = [i for i in itens if i != texas_coins.PLACEHOLDER_ITEM]
+        if tem_dcs:
+            s = self._fonte_label.render("  + DrivingCar Speed  (Limitado ★)", True, COR_VERDE_NEON)
+            surface.blit(s, (p.x + _PAD, inv_y + 18))
+        elif not itens_visiveis:
             vazio = self._fonte_label.render("  Nenhum item obtido ainda.", True, (50, 50, 50))
             surface.blit(vazio, (p.x + _PAD, inv_y + 18))
 
@@ -386,6 +429,6 @@ class LobbyScreen:
         if self._sub is not None:
             self._sub.destroy()
             self._sub = None
-        for b in (self.btn_casual, self.btn_infinito, self.btn_multi,
+        for b in (self.btn_casual, self.btn_infinito, self.btn_multi, self.btn_deck,
                   self.btn_roll_1x, self.btn_roll_10x, self.btn_voltar):
             b.kill()

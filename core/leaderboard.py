@@ -1,9 +1,8 @@
 """Leaderboard online global via Supabase (REST).
 
 Usa apenas a stdlib (`urllib`). Toda chamada de rede é defensiva: qualquer
-falha vira log em PT-BR + retorno neutro, NUNCA derruba o jogo. As credenciais
-abaixo são a chave pública `anon` (somente leitura/inserção, conforme as
-policies já configuradas no Supabase).
+falha vira log em PT-BR + retorno neutro, NUNCA derruba o jogo. Credenciais
+lidas de `config/secrets.py` (chave pública `anon` com env-override).
 
 Identidade do jogador: cada instalação tem um `player_id` (UUID) persistido em
 arquivo local. O registro de vitória é um UPSERT por `player_id` (idempotente),
@@ -20,6 +19,8 @@ import urllib.request
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from config.secrets import SUPABASE_KEY, SUPABASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +46,15 @@ def _ssl_context() -> ssl.SSLContext:
 
 _SSL_CTX = _ssl_context()
 
-SUPABASE_URL = "https://kooausbgcmhmijgqjcpd.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtvb2F1c2JnY21obWlqZ3FqY3BkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNDYxNDYsImV4cCI6MjA5NzgyMjE0Nn0.k_7Dd06RqzqCXicuZ-Ft0vMmvW-V6M_YFYuIYs19uss"
 TABELA = "leaderboard"
 MAX_ENTRIES = 10
+
+# Mapeamento de categorias: chave, label exibida, campo de ordenação e direção.
+CATEGORIAS: dict[str, dict] = {
+    "normal_speedrun": {"label": "Normal",  "campo": "tempo", "ordem": "asc"},
+    "hard_speedrun":   {"label": "Difícil", "campo": "tempo", "ordem": "asc"},
+    "infinite_waves":  {"label": "Infinito","campo": "valor", "ordem": "desc"},
+}
 
 # Cache em memória do player_id (resolvido uma vez por execução).
 _PLAYER_ID_CACHE: str | None = None
@@ -152,11 +158,19 @@ def _formatar_data_utc(created_at_str: str | None) -> str:
 # --------------------------------------------------------------------------- #
 # API pública
 # --------------------------------------------------------------------------- #
-def buscar_top10() -> list[dict]:
-    """Top 10 por menor tempo (ordem crescente). Lista vazia em falha."""
+def buscar_top10(category: str = "normal_speedrun") -> list[dict]:
+    """Top 10 de uma categoria. Lista vazia em falha ou categoria vazia.
+
+    Para speedrun: ordena por `tempo` ASC (menor = melhor).
+    Para waves: ordena por `valor` DESC (maior = melhor).
+    """
+    cfg = CATEGORIAS.get(category, CATEGORIAS["normal_speedrun"])
+    campo = cfg["campo"]
+    ordem = cfg["ordem"]
     endpoint = (
-        f"{TABELA}?select=nome,tempo,created_at,player_id"
-        f"&order=tempo.asc&limit={MAX_ENTRIES}"
+        f"{TABELA}?select=nome,tempo,valor,created_at,player_id"
+        f"&category=eq.{category}"
+        f"&order={campo}.{ordem}&limit={MAX_ENTRIES}"
     )
     resultado = _request("GET", endpoint)
     if not resultado:
@@ -165,35 +179,60 @@ def buscar_top10() -> list[dict]:
         e["data"] = _formatar_data_utc(e.get("created_at"))
     return resultado
 
-def buscar_record_proprio() -> dict | None:
-    """Retorna {'nome': ..., 'tempo': ...} do jogador atual ou None."""
+def buscar_record_proprio(category: str = "normal_speedrun") -> dict | None:
+    """Retorna {'nome': ..., 'tempo': ...} do jogador atual na categoria, ou None."""
     player_id = _get_or_create_player_id()
-    resultado = _request("GET", f"{TABELA}?player_id=eq.{player_id}&select=nome,tempo")
+    resultado = _request(
+        "GET",
+        f"{TABELA}?player_id=eq.{player_id}&category=eq.{category}&select=nome,tempo",
+    )
     if resultado:
         return resultado[0]
     return None
 
 
-def registrar_vitoria(nome: str, tempo_segundos: float) -> int | None:
-    """Registra a vitória e retorna a posição no top 10.
+def _upsert_seguro(player_id: str, category: str, entrada: dict) -> None:
+    """PATCH se já existe entrada para player_id+category; POST caso contrário.
 
-    O banco tem um trigger que só aceita UPDATE quando o novo tempo é estritamente
-    menor que o existente. A função busca o record atual do jogador antes de tentar:
-    — Novo record (tempo menor): UPSERT com novo nome + tempo.
-    — Primeiro registro: INSERT normal.
-    — Tempo não melhorou: retorna a posição atual sem alterar o banco.
+    Workaround para DB com PK em player_id sozinho: evita o 409 do on_conflict
+    composto enquanto a migration (PK → player_id,category) não é executada.
+    """
+    # Tenta PATCH primeiro: só afeta linhas que combinam player_id E category.
+    resultado = _request(
+        "PATCH",
+        f"{TABELA}?player_id=eq.{player_id}&category=eq.{category}",
+        entrada,
+    )
+    # PATCH retorna lista vazia quando nenhuma linha casou — significa que
+    # é um player_id novo NESSA categoria: insere via POST simples.
+    if isinstance(resultado, list) and len(resultado) == 0:
+        _request("POST", TABELA, entrada)
+
+
+def registrar_vitoria(
+    nome: str,
+    tempo_segundos: float,
+    category: str = "normal_speedrun",
+) -> int | None:
+    """Registra vitória com categoria e retorna posição no top 10.
+
+    Retrocompatível: callers que não passam `category` usam 'normal_speedrun'.
+    O banco tem trigger que só aceita UPDATE quando o novo tempo é menor.
     """
     player_id = _get_or_create_player_id()
     nome_sanitizado = nome[:16].strip() or "Anônimo"
     novo_tempo = round(tempo_segundos, 1)
 
-    # Busca entrada existente para comparar tempos.
-    existente = _request("GET", f"{TABELA}?player_id=eq.{player_id}&select=tempo")
+    # Busca entrada existente na categoria para comparar tempos.
+    existente = _request(
+        "GET",
+        f"{TABELA}?player_id=eq.{player_id}&category=eq.{category}&select=tempo",
+    )
     if existente:
         tempo_salvo = existente[0].get("tempo", float("inf"))
         if novo_tempo >= tempo_salvo:
             # Não melhorou: apenas retorna posição atual, sem tocar no banco.
-            top = buscar_top10()
+            top = buscar_top10(category)
             for i, e in enumerate(top):
                 if e.get("player_id") == player_id:
                     return i + 1
@@ -202,11 +241,13 @@ def registrar_vitoria(nome: str, tempo_segundos: float) -> int | None:
     entrada = {
         "nome": nome_sanitizado,
         "tempo": novo_tempo,
+        "valor": novo_tempo,
         "player_id": player_id,
+        "category": category,
     }
-    _request("POST", f"{TABELA}?on_conflict=player_id", entrada, upsert=True)
+    _upsert_seguro(player_id, category, entrada)
 
-    top = buscar_top10()
+    top = buscar_top10(category)
     for i, e in enumerate(top):
         if e.get("player_id") == player_id:
             return i + 1
@@ -239,6 +280,44 @@ def _admin_headers() -> dict:
     }
 
 
+def registrar_infinite_waves(nome: str, waves_completadas: int) -> int | None:
+    """Registra score do modo infinito (waves totalmente completadas).
+
+    Só atualiza se o novo score for maior que o salvo. Retorna posição no
+    top 10 ou None se não entrou. Fallback silencioso — nunca trava o jogo.
+    """
+    player_id = _get_or_create_player_id()
+    nome_sanitizado = nome[:16].strip() or "Anônimo"
+
+    existente = _request(
+        "GET",
+        f"{TABELA}?player_id=eq.{player_id}&category=eq.infinite_waves&select=valor",
+    )
+    if existente:
+        waves_salvas = int(existente[0].get("valor") or 0)
+        if waves_completadas <= waves_salvas:
+            top = buscar_top10("infinite_waves")
+            for i, e in enumerate(top):
+                if e.get("player_id") == player_id:
+                    return i + 1
+            return None
+
+    entrada = {
+        "nome": nome_sanitizado,
+        "tempo": 0.0,
+        "valor": waves_completadas,
+        "player_id": player_id,
+        "category": "infinite_waves",
+    }
+    _upsert_seguro(player_id, "infinite_waves", entrada)
+
+    top = buscar_top10("infinite_waves")
+    for i, e in enumerate(top):
+        if e.get("player_id") == player_id:
+            return i + 1
+    return None
+
+
 def admin_deletar(player_id: str) -> bool:
     """Remove entrada do leaderboard pelo player_id. Requer service_role key."""
     url = f"{SUPABASE_URL}/rest/v1/{TABELA}?player_id=eq.{player_id}"
@@ -254,12 +333,13 @@ def admin_deletar(player_id: str) -> bool:
         return False
 
 
-def admin_upsert(nome: str, tempo: float, player_id: str) -> bool:
+def admin_upsert(nome: str, tempo: float, player_id: str, category: str = "normal_speedrun") -> bool:
     """Insere ou atualiza entrada no leaderboard (conflict merge por player_id)."""
     entrada = {
         "nome": nome[:16].strip() or "Admin",
         "tempo": round(float(tempo), 1),
         "player_id": player_id,
+        "category": category,
     }
     headers = _admin_headers()
     headers["Prefer"] = "resolution=merge-duplicates,return=minimal"

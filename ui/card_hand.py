@@ -8,6 +8,7 @@ estão no campo (barra de slots) — não a modifica.
 """
 
 import pygame
+from core.asset_manager import AssetManager
 
 from config.settings import (
     CARD_HEIGHT,
@@ -31,7 +32,7 @@ from config.settings import (
     HUD_RECT,
     WINDOW_WIDTH,
 )
-from entities.tower import TOWER_TYPES
+from entities.tower import TOWER_TYPES as _TOWER_TYPES_DEFAULT
 
 # Sprite dentro da carta.
 CARD_SPRITE_SIZE: int = 40
@@ -47,21 +48,21 @@ TOOLTIP_DELAY: float = 0.5
 class CardHand:
     """Cartas de Speed exibidas na barra inferior."""
 
-    def __init__(self, assets) -> None:
+    def __init__(self, assets, tipos: list | None = None) -> None:
+        self.tipos: list = tipos if tipos is not None else _TOWER_TYPES_DEFAULT
         self.selected: int | None = None
 
         # Estado de hover para o tooltip (índice e tempo acumulado sobre a carta).
         self._hover_idx: int | None = None
         self._hover_timer: float = 0.0
 
-        # Fontes: BebasNeue (TTF) para custo/moedas, Liberation Sans Bold para nomes.
-        from config.settings import FONTE_TITULO_PATH
-        self._fonte_stats = pygame.font.SysFont("monospace", 11)
-        self._fonte_custo = pygame.font.Font(str(FONTE_TITULO_PATH), 18)
-        self._fonte_ind = pygame.font.SysFont("monospace", 13, bold=True)
-        self._fonte_moedas = pygame.font.Font(str(FONTE_TITULO_PATH), 28)
-        self._fonte_tip = pygame.font.SysFont("liberationsans", 18, bold=True)
-        self._fonte_tip_peq = pygame.font.SysFont("monospace", 13)
+        # Fontes: BebasNeue (custo/moedas), Orbitron Bold (nomes/indicadores).
+        self._fonte_stats = AssetManager.get_font("font_body", 11)
+        self._fonte_custo = AssetManager.get_font("font_title", 18)
+        self._fonte_ind = AssetManager.get_font("font_hud", 13)
+        self._fonte_moedas = AssetManager.get_font("font_title", 28)
+        self._fonte_tip = AssetManager.get_font("font_hud", 18)
+        self._fonte_tip_peq = AssetManager.get_font("font_body", 13)
 
         # Surfaces cacheadas — evitar alocação por frame
         # (tamanho calculado após _rects, mais abaixo)
@@ -73,12 +74,12 @@ class CardHand:
             pygame.transform.smoothscale(
                 assets.get(t.asset_name), (CARD_SPRITE_SIZE, CARD_SPRITE_SIZE)
             )
-            for t in TOWER_TYPES
+            for t in self.tipos
         ]
 
         # Largura dinâmica para caber todas as cartas (deixa 160px à esquerda
         # para o saldo de moedas). Bloco alinhado à direita da HUD_RECT.
-        n = len(TOWER_TYPES)
+        n = len(self.tipos)
         card_w = (WINDOW_WIDTH - 160) // n
         largura_total = n * card_w + (n - 1) * CARD_GAP
         x0 = HUD_RECT.right - largura_total - 12
@@ -102,13 +103,13 @@ class CardHand:
         larg_desc = card_w - 16          # descrição começa em x=8
         self._nome_surfs: list[pygame.Surface] = [
             self._render_texto_ajustado(t.nome, larg_nome, COR_TEXTO, 22, 11, bold=True)
-            for t in TOWER_TYPES
+            for t in self.tipos
         ]
         self._desc_surfs: list[pygame.Surface | None] = [
             self._render_texto_ajustado(
                 t.description, larg_desc, COLOR_CARD_DESC, 10, 8, mono=True, italic=True
             ) if t.description else None
-            for t in TOWER_TYPES
+            for t in self.tipos
         ]
 
     # ------------------------------------------------------------------ #
@@ -128,18 +129,19 @@ class CardHand:
         """Renderiza `texto` reduzindo a fonte de `font_max` a `font_min` até
         caber em `larg_max` px. Se nem no mínimo couber, trunca com reticências.
         """
+        # Mapeia estilo → nome semântico de fonte no AssetManager
         if mono:
-            fam = "monospace"
+            nome_fonte = "font_body"
         elif bold:
-            fam = "liberationsans"  # Oswald bold → Liberation Sans Bold (disponível no Linux)
+            nome_fonte = "font_hud"
         else:
-            fam = None
+            nome_fonte = "font_body"
         for tam in range(font_max, font_min - 1, -1):
-            fonte = pygame.font.SysFont(fam, tam, bold=bold, italic=italic)
+            fonte = AssetManager.get_font(nome_fonte, tam)
             if fonte.size(texto)[0] <= larg_max:
                 return fonte.render(texto, True, cor)
         # Não coube nem no menor tamanho: trunca caractere a caractere com "…".
-        fonte = pygame.font.SysFont(fam, font_min, bold=bold, italic=italic)
+        fonte = AssetManager.get_font(nome_fonte, font_min)
         trunc = texto
         while trunc and fonte.size(trunc + "…")[0] > larg_max:
             trunc = trunc[:-1]
@@ -193,7 +195,7 @@ class CardHand:
         )
 
         for i, (rect, tipo, sprite) in enumerate(
-            zip(self._rects, TOWER_TYPES, self._sprites)
+            zip(self._rects, self.tipos, self._sprites)
         ):
             postas = [t for t in towers if type(t) is tipo]
             self._desenhar_carta(
@@ -206,7 +208,7 @@ class CardHand:
         if self._hover_idx is None or self._hover_timer < TOOLTIP_DELAY:
             return
 
-        tipo = TOWER_TYPES[self._hover_idx]
+        tipo = self.tipos[self._hover_idx]
         linhas = [
             (tipo.nome, self._fonte_tip, COLOR_GOLD),
             (f"Custo: ${tipo.cost}", self._fonte_tip_peq, COR_TEXTO),

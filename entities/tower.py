@@ -16,6 +16,7 @@ import pygame
 from config.settings import CELL_SIZE, MAX_PER_TYPE
 from entities.enemy import Enemy
 from entities.projectile import Projectile
+from entities.target_priority import TargetPriority, select_target
 
 # Tamanho do sprite da torre no mapa (célula menos um padding de 8px).
 SPRITE_SIZE: int = CELL_SIZE - 8  # 56×56
@@ -46,6 +47,8 @@ class Tower:
     # Máximo desta torre no campo. Default = limite global; subclasses podem
     # restringir (ex.: Speed4/Speed7 = 1).
     max_no_campo: int = MAX_PER_TYPE
+    # True → efeito cobre o campo inteiro (sem filtro de range).
+    full_aoe: bool = False
 
     def __init__(self, assets, x: float, y: float, cell_x: int, cell_y: int) -> None:
         # Posição exata em pixels de tela (posicionamento livre, sem snap ao grid).
@@ -67,6 +70,8 @@ class Tower:
         # Sinal de VFX AOE: preenchido durante update() quando torre dispara AOE;
         # lido pelo game loop para criar o flash visual; resetado antes de cada update.
         self.aoe_flash: dict | None = None
+        # Prioridade de seleção de alvo — alterável pelo jogador via UI.
+        self.priority: TargetPriority = TargetPriority.FIRST
         # Sprite escalado para uma célula (56×56). Mesmo torres com cell_radius>0
         # (Speed3/Speed7, que bloqueiam área maior no grid) usam o sprite de uma
         # célula — manter proporcional ao resto evita torres visualmente enormes.
@@ -95,31 +100,11 @@ class Tower:
                 return projetil
         return None
 
-    def _find_target(self, enemies: list[Enemy]) -> Enemy | None:
-        """Inimigo mais avançado no path dentro do alcance.
-
-        Empate de waypoint_index → o mais próximo do próximo waypoint
-        (menor distância da torre, como aproximação simples e estável).
-        """
-        cx, cy = self.centro_pixel()
-        alcance2 = self.range_px * self.range_px
-        melhor: Enemy | None = None
-        for inimigo in enemies:
-            dx = inimigo.x - cx
-            dy = inimigo.y - cy
-            dist2 = dx * dx + dy * dy
-            if dist2 > alcance2:
-                continue
-            if (
-                melhor is None
-                or inimigo.waypoint_index > melhor.waypoint_index
-                or (
-                    inimigo.waypoint_index == melhor.waypoint_index
-                    and dist2 < (melhor.x - cx) ** 2 + (melhor.y - cy) ** 2
-                )
-            ):
-                melhor = inimigo
-        return melhor
+    def _find_target(self, enemies: list[Enemy]) -> "Enemy | None":
+        """Delega seleção de alvo ao sistema de prioridade."""
+        return select_target(
+            enemies, self.priority, self.range_px, self.centro_pixel()
+        )
 
     # ------------------------------------------------------------------ #
     # Posição
@@ -231,7 +216,7 @@ class Speed3(Tower):
 
 
 class Speed4(Tower):
-    """KindaHomeless Speed — campo de lentidão AOE; aplica slow em todos no range."""
+    """KindaHomeless Speed — campo de lentidão AOE; aplica slow em todos no campo."""
 
     nome = "KindaHomeless Speed"
     cost = 75
@@ -242,7 +227,6 @@ class Speed4(Tower):
     asset_name = "speed4"
     description = "AOE slow 5s em campo inteiro. Não acumula."
     max_no_campo = 2
-
     def update(self, dt: float, enemies: list[Enemy]) -> None:
         """Pulsa AOE slow — sem projétil. Emite aoe_flash no disparo."""
         if self.fire_timer > 0:
@@ -338,7 +322,7 @@ class Speed5(Tower):
             self.cooldown_timer -= dt
 
         if self.buff_active:
-            # Modo AOE: ataca todos no range a cada BUFF_AOE_INTERVAL segundos.
+            # Modo AOE: ataca todos no campo a cada BUFF_AOE_INTERVAL segundos.
             if self.fire_timer > 0:
                 self.fire_timer -= dt
             if self.fire_timer <= 0:
@@ -376,6 +360,7 @@ class Speed7(Tower):
     description = "Hitkill global. Uso único. Não vendável."
     cell_radius = 0
     max_no_campo = 1  # uso único por partida; só 1 no campo
+    full_aoe: bool = True
 
     def __init__(self, assets, x: float, y: float, cell_x: int, cell_y: int) -> None:
         super().__init__(assets, x, y, cell_x, cell_y)

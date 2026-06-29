@@ -12,11 +12,11 @@ import logging
 import subprocess
 
 import pygame
+from core.asset_manager import AssetManager
 import pygame_gui
 
 from config.settings import (
     # CORREÇÃO: CENTRO_X e COLOR_GOLD removidos (não existem no settings.py)
-    FONTE_TITULO_PATH,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
     COR_CINZA_CLARO,
@@ -63,9 +63,9 @@ class AdminPanel:
 
     def __init__(self, manager: pygame_gui.UIManager) -> None:
         self._manager = manager
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 22)
-        self._fonte = pygame.font.SysFont("monospace", 15)
-        self._fonte_peq = pygame.font.SysFont("monospace", 12)
+        self._fonte_titulo = AssetManager.get_font("font_title", 22)
+        self._fonte = AssetManager.get_font("font_body", 15)
+        self._fonte_peq = AssetManager.get_font("font_body", 12)
 
         self._overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         self._overlay.fill(COR_OVERLAY_MODAL)

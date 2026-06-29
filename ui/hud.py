@@ -13,6 +13,7 @@ Estilo btn-hud (HTML de referência):
 """
 
 import pygame
+from core.asset_manager import AssetManager
 
 from config.settings import (
     COLOR_CARD_BG,
@@ -25,6 +26,7 @@ from config.settings import (
     COR_CIANO,
     COR_HUD_BARRA_BG,
     COR_HUD_BORDA,
+    COR_INF_BADGE,
     COR_LABEL_HUD,
     COR_TEXTO,
     COR_VERDE_NEON,
@@ -60,11 +62,11 @@ class HUD:
     """Barra superior de informações e controles da partida."""
 
     def __init__(self) -> None:
-        self._fonte_stat  = pygame.font.SysFont("monospace", 15, bold=True)
-        self._fonte_label = pygame.font.SysFont("monospace", 13)
-        self._fonte_btn   = pygame.font.SysFont("monospace", 13, bold=True)
-        self._fonte_alert = pygame.font.SysFont("liberationsans", 16, bold=True)
-        self._fonte_cd    = pygame.font.SysFont("monospace", 14)
+        self._fonte_stat  = AssetManager.get_font("font_hud", 15)
+        self._fonte_label = AssetManager.get_font("font_body", 13)
+        self._fonte_btn   = AssetManager.get_font("font_hud", 13)
+        self._fonte_alert = AssetManager.get_font("font_hud", 16)
+        self._fonte_cd    = AssetManager.get_font("font_body", 14)
 
     # ── API pública (rects para detecção de clique no main) ─────────────────
     @staticmethod
@@ -95,6 +97,8 @@ class HUD:
         skip_disponivel: bool = False,
         skip_bonus: int = 0,
         auto_skip: bool = False,
+        modo_infinito: bool = False,
+        prox_boss_wave: int | None = None,
     ) -> None:
         bx = MAP_RECT.x
         by = MAP_RECT.y
@@ -109,8 +113,16 @@ class HUD:
 
         meio_y = by + TOP_BAR_HEIGHT // 2
 
+        # ── Badge [INFINITO] (à esquerda, antes dos stats) ───────────────────
+        if modo_infinito:
+            badge = self._fonte_btn.render("[INFINITO]", True, COR_INF_BADGE)
+            surface.blit(badge, badge.get_rect(midleft=(bx + 8, meio_y)))
+            bx_stats = bx + badge.get_width() + 16
+        else:
+            bx_stats = bx + 12
+
         # ── Stats à esquerda ─────────────────────────────────────────────────
-        x = bx + 12
+        x = bx_stats
         x = self._stat(surface, x, meio_y, "$", str(coins), COLOR_GOLD)
         x = self._stat(surface, x + 18, meio_y, "Mortes", str(kills), COR_TEXTO)
 
@@ -169,9 +181,12 @@ class HUD:
                 aviso = self._fonte_alert.render("!! BOSS !!", True, COR_BOSS_ALERTA)
                 surface.blit(aviso, aviso.get_rect(center=(MAP_RECT.centerx, sub_y)))
         elif next_wave_in is not None:
-            cd = self._fonte_cd.render(
-                f"Próxima onda: {next_wave_in:.0f}s", True, COR_CIANO
+            cd_txt = (
+                f"Próxima onda: {next_wave_in:.0f}s"
+                if not (modo_infinito and prox_boss_wave is not None)
+                else f"Próxima onda: {next_wave_in:.0f}s  |  Boss: wave {prox_boss_wave}"
             )
+            cd = self._fonte_cd.render(cd_txt, True, COR_CIANO)
             surface.blit(cd, cd.get_rect(center=(MAP_RECT.centerx, sub_y)))
 
     # ── Helpers ──────────────────────────────────────────────────────────────

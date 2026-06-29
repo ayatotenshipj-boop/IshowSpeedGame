@@ -6,6 +6,7 @@ escolhido ("facil"|"normal"|"dificil"), "voltar" ou None.
 """
 
 import pygame
+from core.asset_manager import AssetManager
 import pygame_gui
 
 from config.settings import (
@@ -18,7 +19,6 @@ from config.settings import (
     MODOS_DIFICULDADE,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
-    FONTE_TITULO_PATH,
 )
 
 BTN_W: int = 320
@@ -38,8 +38,8 @@ class ModoScreen:
     """Seleção de dificuldade antes da partida."""
 
     def __init__(self, manager: pygame_gui.UIManager, assets=None) -> None:
-        self._fonte_titulo = pygame.font.Font(str(FONTE_TITULO_PATH), 56)
-        self._fonte_desc = pygame.font.SysFont("monospace", 22)
+        self._fonte_titulo = AssetManager.get_font("font_title", 56)
+        self._fonte_desc = AssetManager.get_font("font_body", 22)
 
         # Fundo: mapa escurecido (se disponível) ou cor neutra.
         self._bg: pygame.Surface | None = None
