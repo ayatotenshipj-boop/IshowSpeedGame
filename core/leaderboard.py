@@ -20,8 +20,6 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from config.secrets import SUPABASE_KEY, SUPABASE_URL
-
 logger = logging.getLogger(__name__)
 
 
