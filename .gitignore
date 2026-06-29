@@ -15,8 +15,6 @@ build/
 *.pem
 # secrets.py genérico na raiz (config/secrets.py é seguro — tem só anon key pública)
 /secrets.py
-# Códigos promo: nunca commitar (usar codigos_promo.json.example como referência)
-config/codigos_promo.json
 
 # Resíduos de editor e SO
 .vscode/
