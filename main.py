@@ -57,7 +57,7 @@ from entities.boss import Ancelotti
 from entities.infinite_wave_manager import InfiniteWaveManager
 from entities.tower import SPRITE_SIZE, TOWER_TYPES, Speed5, Speed7
 from entities.wave_manager import WAVES
-from entities.wave_scaler import calcular_bonus_wave, calcular_tc_por_wave
+from entities.wave_scaler import calcular_bonus_wave, calcular_tc_por_kill
 from map.game_map import GameMap
 from map.placement_grid import PlacementGrid
 from ui.card_hand import CardHand
@@ -1107,6 +1107,7 @@ def _ativar_habilidade_speed7(state: GameState, assets, audio) -> None:
     duracao = audio.tocar_suspense_once()
     state.speed7_effect_timer = duracao if duracao > 0 else 6.0
 
+    tc_por_kill = calcular_tc_por_kill(state.wave) if state.modo_dificuldade == "infinito" else 0
     for inimigo in state.enemies:
         state.coins += inimigo.reward
         state.kills += 1
@@ -1114,6 +1115,8 @@ def _ativar_habilidade_speed7(state: GameState, assets, audio) -> None:
         # representa fim de jogo; a flag True quebraria o estado entre boss waves).
         if inimigo.name == "Ancelotti" and state.modo_dificuldade != "infinito":
             state.boss_defeated = True
+        if tc_por_kill:
+            texas_coins.adicionar(tc_por_kill)
         state.death_flashes.append(
             {"x": inimigo.x, "y": inimigo.y, "timer": 0.3, "color": (255, 50, 255)}
         )
@@ -1274,6 +1277,8 @@ def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict], assets) 
             state.kills += 1
             if enemy.name == "Ancelotti" and state.modo_dificuldade != "infinito":
                 state.boss_defeated = True
+            if state.modo_dificuldade == "infinito":
+                texas_coins.adicionar(calcular_tc_por_kill(state.wave))
 
     # 4. Flashes de morte expiram.
     for flash in state.death_flashes[:]:
@@ -1442,12 +1447,9 @@ def _processar_bonus_onda_infinita(state: GameState) -> None:
     if waves_agora > state.infinite_waves_completadas:
         bonus = calcular_bonus_wave(waves_agora)
         state.coins += bonus
-        tc_wave = calcular_tc_por_wave(waves_agora)
-        texas_coins.adicionar(tc_wave)
         state.infinite_waves_completadas = waves_agora
         logger.info(
-            "[Infinito] Wave %d completa. Bônus: +%d moedas, +%d TC.",
-            waves_agora, bonus, tc_wave,
+            "[Infinito] Wave %d completa. Bônus: +%d moedas.", waves_agora, bonus
         )
         # Conquistas progressivas — verifica todos os limiares <= waves_agora
         # (retroativo: se waves_agora=30, desbloqueia 10 e 20 também se inéditas).

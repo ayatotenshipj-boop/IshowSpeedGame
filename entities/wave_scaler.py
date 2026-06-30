@@ -102,10 +102,10 @@ def calcular_bonus_wave(wave: int) -> int:
     return base * 3 if e_boss_wave(wave) else base
 
 
-def calcular_tc_por_wave(wave: int) -> int:
-    """TexasCoins concedidos ao completar uma wave no Modo Infinito.
+def calcular_tc_por_kill(wave: int) -> int:
+    """TexasCoins concedidos por kill no Modo Infinito.
 
-    Faixas: 1-10 → 25 TC, 11-20 → 50 TC, 21-30 → 75 TC.
+    Faixas: wave 1-10 → 25 TC/kill, 11-20 → 50 TC/kill, 21-30 → 75 TC/kill.
     Acima de 30 escala +25 TC a cada 10 waves extras.
     """
     if wave <= 10:
