@@ -10,6 +10,7 @@ Três abas: TC (TexasCoin), LEADERBOARD, CARTAS.
 
 import logging
 import subprocess
+import threading
 
 import pygame
 from core.asset_manager import AssetManager
@@ -110,6 +111,7 @@ class AdminPanel:
         self._lb_sel = -1
         self._lb_row_h = 27
         self._lb_area = pygame.Rect(px + 8, py + 110, PAINEL_W - 16, 6 * 27)
+        self._lb_gen: int = 0  # geração da busca ativa (evita resultados obsoletos)
 
         self._entry_lb_nome = pygame_gui.elements.UITextEntryLine(
             relative_rect=pygame.Rect(px + 8, py + 330, 150, 32),
@@ -198,9 +200,23 @@ class AdminPanel:
             self._cartas_data = list(texas_coins.get_itens())
 
     def _lb_refresh(self) -> None:
-        self._lb_data = lb.buscar_top10()
+        """Dispara busca do leaderboard em thread para não travar o game loop."""
+        self._lb_gen += 1
+        gen = self._lb_gen
+        self._lb_data = []
         self._lb_sel = -1
-        n = len(self._lb_data)
+        self._set_msg("Buscando...")
+        threading.Thread(
+            target=self._lb_buscar_thread, args=(gen,), daemon=True
+        ).start()
+
+    def _lb_buscar_thread(self, gen: int) -> None:
+        dados = lb.buscar_top10()
+        if gen != self._lb_gen:
+            return  # resultado obsoleto (nova busca já iniciada)
+        self._lb_data = dados
+        self._lb_sel = -1
+        n = len(dados)
         self._set_msg(f"{n} entradas carregadas" if n else "Sem dados (offline?)")
 
     def _set_msg(self, texto: str, ok: bool = True) -> None:

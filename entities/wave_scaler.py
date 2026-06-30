@@ -9,6 +9,10 @@ from config.settings import (
     INF_BOSS_WAVE_INTERVAL,
     INF_QTD_CAP,
     INF_REWARD_CAP_WAVE,
+    INF_TC_WAVE_ESCALA,
+    INF_TC_WAVE_FAIXA1,
+    INF_TC_WAVE_FAIXA2,
+    INF_TC_WAVE_FAIXA3,
     INF_VEL_CAP_MULT,
     INF_VEL_FATOR,
 )
@@ -96,6 +100,22 @@ def calcular_bonus_wave(wave: int) -> int:
     else:
         base = 300 + wave * 5
     return base * 3 if e_boss_wave(wave) else base
+
+
+def calcular_tc_por_wave(wave: int) -> int:
+    """TexasCoins concedidos ao completar uma wave no Modo Infinito.
+
+    Faixas: 1-10 → 25 TC, 11-20 → 50 TC, 21-30 → 75 TC.
+    Acima de 30 escala +25 TC a cada 10 waves extras.
+    """
+    if wave <= 10:
+        return INF_TC_WAVE_FAIXA1
+    if wave <= 20:
+        return INF_TC_WAVE_FAIXA2
+    if wave <= 30:
+        return INF_TC_WAVE_FAIXA3
+    extras = (wave - 31) // 10 + 1
+    return INF_TC_WAVE_FAIXA3 + extras * INF_TC_WAVE_ESCALA
 
 
 def escolher_tipos_wave(wave: int) -> list[str]:

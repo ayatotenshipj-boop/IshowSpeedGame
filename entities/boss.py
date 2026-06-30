@@ -16,6 +16,7 @@ import random
 import pygame
 
 from entities.enemy import Enemy, Labubu4
+from entities.wave_scaler import calcular_recompensa_kill
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,8 @@ class Ancelotti(Enemy):
         self._fury: bool = False
         self._speed_base: float = type(self).speed
         self._spawn_timer: float = SPAWN_INTERVAL
+        # Wave atual (injetada pelo InfiniteWaveManager para escalar reforços).
+        self._wave_num: int = 1
 
         self.sprite = pygame.transform.smoothscale(
             assets.get(self.asset_name), (BOSS_SPRITE_SIZE, BOSS_SPRITE_SIZE)
@@ -113,27 +116,39 @@ class Ancelotti(Enemy):
     # Invocação
     # ------------------------------------------------------------------ #
     def _criar_grupo_spawn(self) -> list[Labubu4]:
-        """Cria SPAWN_COUNT Labubu4s com 50% HP levemente à frente de Ancelotti."""
+        """Cria SPAWN_COUNT Labubu4s com 50% HP ligeiramente à frente de Ancelotti.
+
+        Garante waypoint_index seguro: ao menos 2 waypoints restantes após o
+        ponto de spawn para evitar saída imediata do path.
+        """
         wp = self._waypoints
         grupo: list[Labubu4] = []
-        wi_target = min(self.waypoint_index + SPAWN_WAYPOINTS_AHEAD, len(wp) - 1)
+
+        # Limite seguro: deixa ao menos 2 waypoints de margem até o fim.
+        wi_max_seguro = max(0, len(wp) - 3)
+        wi_target = min(self.waypoint_index + SPAWN_WAYPOINTS_AHEAD, wi_max_seguro)
         wi_pos = max(0, wi_target - 1)
         base_x = float(wp[wi_pos]["x"])
         base_y = float(wp[wi_pos]["y"])
+
+        # Recompensa escalada pela wave atual (50% do valor normal de Labubu4).
+        reward_base = calcular_recompensa_kill(Labubu4.reward, self._wave_num)
+        reward_spawn = max(8, reward_base // 2)
 
         for _ in range(SPAWN_COUNT):
             spawn = Labubu4(self._assets, wp)
             spawn.max_hp = int(Labubu4.max_hp * 0.5)
             spawn.hp = spawn.max_hp
-            spawn.reward = max(8, int(Labubu4.reward * 0.5))
+            spawn.reward = reward_spawn
             spawn.waypoint_index = wi_target
-            spawn.x = base_x + random.uniform(-24, 24)
-            spawn.y = base_y + random.uniform(-24, 24)
+            spawn.velocidade_base = Labubu4.speed
+            spawn.x = base_x + random.uniform(-20, 20)
+            spawn.y = base_y + random.uniform(-20, 20)
             grupo.append(spawn)
 
         logger.info(
-            "[Ancelotti] Invocou %d Labubu4s (waypoint %d → %d).",
-            SPAWN_COUNT, self.waypoint_index, wi_target,
+            "[Ancelotti] Invocou %d Labubu4s (waypoint %d → %d, wave %d).",
+            SPAWN_COUNT, self.waypoint_index, wi_target, self._wave_num,
         )
         return grupo
 

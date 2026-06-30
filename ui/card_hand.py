@@ -30,6 +30,7 @@ from config.settings import (
     COR_SKILL_USADA,
     COR_ROXO_IND,
     HUD_RECT,
+    INF_CAPACIDADE_MAX,
     WINDOW_WIDTH,
 )
 from entities.tower import TOWER_TYPES as _TOWER_TYPES_DEFAULT
@@ -183,8 +184,12 @@ class CardHand:
     # ------------------------------------------------------------------ #
     # Render
     # ------------------------------------------------------------------ #
-    def draw(self, surface: pygame.Surface, coins: int, towers=()) -> None:
-        """Desenha a barra, o saldo e as cartas (com slots por tipo já posto)."""
+    def draw(self, surface: pygame.Surface, coins: int, towers=(), modo: str = "normal") -> None:
+        """Desenha a barra, o saldo e as cartas (com slots por tipo já posto).
+
+        `modo`: modo de jogo atual (ex. "infinito") — usado para aplicar
+        INF_CAPACIDADE_MAX no Modo Infinito sem alterar atributos de classe.
+        """
         surface.fill(COR_FUNDO_HUD, HUD_RECT)
 
         # Saldo de moedas à esquerda das cartas.
@@ -194,13 +199,17 @@ class CardHand:
             (HUD_RECT.x + 16, HUD_RECT.y + HUD_RECT.height // 2 - txt_moedas.get_height() // 2),
         )
 
+        _modo_inf = modo == "infinito"
+
         for i, (rect, tipo, sprite) in enumerate(
             zip(self._rects, self.tipos, self._sprites)
         ):
             postas = [t for t in towers if type(t) is tipo]
+            cap = INF_CAPACIDADE_MAX if _modo_inf else tipo.max_no_campo
             self._desenhar_carta(
                 surface, rect, tipo, sprite, coins, len(postas), postas,
                 i == self.selected, self._nome_surfs[i], self._desc_surfs[i],
+                cap_efetiva=cap,
             )
 
     def draw_tooltip(self, surface: pygame.Surface) -> None:
@@ -251,12 +260,18 @@ class CardHand:
         selecionada: bool,
         nome_surf: pygame.Surface,
         desc_surf: pygame.Surface | None,
+        cap_efetiva: int | None = None,
     ) -> None:
-        """Desenha uma carta individual na surface cacheada (para alpha)."""
+        """Desenha uma carta individual na surface cacheada (para alpha).
+
+        `cap_efetiva`: capacidade máxima efetiva (pode diferir de tipo.max_no_campo
+        no Modo Infinito). None usa tipo.max_no_campo.
+        """
         carta = self._carta_surf
         carta.fill((0, 0, 0, 0))  # limpar antes de redesenhar
         area = pygame.Rect(0, 0, rect.width, rect.height)
-        no_limite = n_postas >= tipo.max_no_campo
+        cap = cap_efetiva if cap_efetiva is not None else tipo.max_no_campo
+        no_limite = n_postas >= cap
 
         # Fundo oliva escuro + faixa-topo levemente mais clara (simula border-top HTML).
         carta.fill(COLOR_CARD_BG, area)
@@ -277,13 +292,15 @@ class CardHand:
             carta.blit(desc_surf, (8, 76))
 
         # Barra de slots (quantas torres deste tipo já estão no campo).
+        # Cap exibida limitada em 8 visuais para não transbordar a carta.
+        cap_visual = min(cap, 8)
         slots_y = rect.height - SLOT_SIZE - 3
-        for s in range(tipo.max_no_campo):
+        for s in range(cap_visual):
             cor = COLOR_SLOT_ON if s < n_postas else COLOR_SLOT_OFF
             carta.fill(cor, pygame.Rect(8 + s * (SLOT_SIZE + SLOT_GAP), slots_y, SLOT_SIZE, SLOT_SIZE))
         # Contador textual à direita dos slots.
-        cont = self._fonte_stats.render(f"{n_postas}/{tipo.max_no_campo}", True, COLOR_CARD_STATS)
-        carta.blit(cont, (8 + tipo.max_no_campo * (SLOT_SIZE + SLOT_GAP) + 6, slots_y - 2))
+        cont = self._fonte_stats.render(f"{n_postas}/{cap}", True, COLOR_CARD_STATS)
+        carta.blit(cont, (8 + cap_visual * (SLOT_SIZE + SLOT_GAP) + 6, slots_y - 2))
 
         # Indicadores de buff/habilidade (dormentes até Speed6/7 existirem).
         self._desenhar_indicadores(carta, postas, rect)

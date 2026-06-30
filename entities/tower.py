@@ -13,7 +13,7 @@ speed6, dano dobrado por 5s, cooldown 15s) ao ser ativada na torre posicionada.
 
 import pygame
 
-from config.settings import CELL_SIZE, MAX_PER_TYPE
+from config.settings import CELL_SIZE, INF_KILLTHATBOY_COOLDOWN, MAX_PER_TYPE
 from entities.enemy import Enemy
 from entities.projectile import Projectile
 from entities.target_priority import TargetPriority, select_target
@@ -369,19 +369,36 @@ class Speed7(Tower):
 
     def __init__(self, assets, x: float, y: float, cell_x: int, cell_y: int) -> None:
         super().__init__(assets, x, y, cell_x, cell_y)
+        # ability_used = True em modos normais (uso único permanente).
+        # No Modo Infinito usa cooldown_timer em vez de ability_used.
         self.ability_used: bool = False
+        self.cooldown_timer: float = 0.0  # > 0 enquanto em cooldown no infinito
 
-    def update(self, dt, enemies):
-        # Não atira: sem detecção, sem loop, sem _find_target. range_px alto é
-        # apenas simbólico (tooltip) e nunca entra em cálculo de alcance.
+    def update(self, dt: float, enemies: list) -> None:
+        # Não atira. No Modo Infinito, decrementa o cooldown.
+        if self.cooldown_timer > 0.0:
+            self.cooldown_timer -= dt
+            if self.cooldown_timer < 0.0:
+                self.cooldown_timer = 0.0
         return None
 
     def draw_range(self, surface: pygame.Surface) -> None:
         """Sem círculo de alcance: range_px é simbólico (evita Surface gigante)."""
         return
 
-    def use_ability(self) -> bool:
-        """Marca a habilidade como usada. Retorna True só na primeira chamada."""
+    def use_ability(self, modo: str = "normal") -> bool:
+        """Ativa a habilidade. Comportamento depende do modo.
+
+        Modo normal/difícil: uso único permanente (ability_used = True).
+        Modo infinito: recarregável com INF_KILLTHATBOY_COOLDOWN segundos.
+        Retorna True somente quando a habilidade é de fato ativada.
+        """
+        if modo == "infinito":
+            if self.cooldown_timer > 0.0:
+                return False
+            self.cooldown_timer = INF_KILLTHATBOY_COOLDOWN
+            return True
+        # Modos normais: uso único.
         if self.ability_used:
             return False
         self.ability_used = True

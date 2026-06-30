@@ -86,8 +86,18 @@ class TowerPanel:
 
         # Habilidade (Speed7).
         if hasattr(tower, "use_ability"):
+            cooldown = getattr(tower, "cooldown_timer", 0.0)
             usada = getattr(tower, "ability_used", False)
-            botoes.append(("ability", "Habilidade usada" if usada else "Usar habilidade", not usada))
+            if cooldown > 0.0:
+                label_habil = f"Cooldown: {int(cooldown) + 1}s"
+                disponivel = False
+            elif usada:
+                label_habil = "Habilidade usada"
+                disponivel = False
+            else:
+                label_habil = "Usar habilidade"
+                disponivel = True
+            botoes.append(("ability", label_habil, disponivel))
 
         # Prioridade de alvo — exibida para torres que atiram; omitida para
         # DrivingCarSpeed (buffer puro) e Speed7 (hitkill sem alvo individual).

@@ -23,6 +23,8 @@ from config.settings import (
     FPS,
     HIT_RADIUS,
     HUD_RECT,
+    INF_BOSS_WAVE_INTERVAL,
+    INF_CAPACIDADE_MAX,
     MAP_RECT,
     MODOS_DIFICULDADE,
     RAIZ_PROJETO,
@@ -55,7 +57,7 @@ from entities.boss import Ancelotti
 from entities.infinite_wave_manager import InfiniteWaveManager
 from entities.tower import SPRITE_SIZE, TOWER_TYPES, Speed5, Speed7
 from entities.wave_manager import WAVES
-from entities.wave_scaler import calcular_bonus_wave
+from entities.wave_scaler import calcular_bonus_wave, calcular_tc_por_wave
 from map.game_map import GameMap
 from map.placement_grid import PlacementGrid
 from ui.card_hand import CardHand
@@ -647,10 +649,15 @@ def main() -> None:
                             click_x, click_y = pos
                             cx, cy = grid.pixel_to_cell(click_x, click_y)
                             n_tipo = sum(1 for t in state.towers if type(t) is tipo)
+                            cap_efetiva = (
+                                INF_CAPACIDADE_MAX
+                                if state.modo_dificuldade == "infinito"
+                                else tipo.max_no_campo
+                            )
                             if (
                                 grid.is_area_placeable(click_x, click_y, tipo.cell_radius)
                                 and state.coins >= tipo.cost
-                                and n_tipo < tipo.max_no_campo
+                                and n_tipo < cap_efetiva
                             ):
                                 grid.set_occupied_radius(cx, cy, tipo.cell_radius)
                                 state.towers.append(
@@ -935,8 +942,8 @@ def main() -> None:
             ):
                 state.selected_tower.draw_range(render_surface)
                 tower_panel.draw(render_surface, state.selected_tower, state.coins)
-            card_hand.draw(render_surface, state.coins, state.towers)
             _modo_inf = state.modo_dificuldade == "infinito"
+            card_hand.draw(render_surface, state.coins, state.towers, modo=state.modo_dificuldade)
             _prox_boss: int | None = None
             if _modo_inf and isinstance(state.wave_manager, InfiniteWaveManager):
                 _prox_boss = state.wave_manager.proxima_boss_wave(state.wave)
@@ -949,7 +956,7 @@ def main() -> None:
                 total_waves=(0 if _modo_inf else len(WAVES)),
                 boss_wave=(
                     state.wave_manager.anuncio_ativo
-                    and state.wave_manager.anuncio_wave_num % 10 == 0
+                    and state.wave_manager.anuncio_wave_num % INF_BOSS_WAVE_INTERVAL == 0
                     if _modo_inf and isinstance(state.wave_manager, InfiniteWaveManager)
                     else state.wave == len(WAVES)
                 ),
@@ -1058,7 +1065,7 @@ def _processar_acao_painel(acao: str, state: GameState, grid, assets, audio) -> 
         if isinstance(torre, Speed5):
             torre.activate_buff()
     elif acao == "ability":
-        if isinstance(torre, Speed7) and torre.use_ability():
+        if isinstance(torre, Speed7) and torre.use_ability(state.modo_dificuldade):
             _ativar_habilidade_speed7(state, assets, audio)
     elif acao == "sell":
         # Speed7 NÃO pode ser vendida: vender+reimplantar geraria nova instância
@@ -1103,9 +1110,9 @@ def _ativar_habilidade_speed7(state: GameState, assets, audio) -> None:
     for inimigo in state.enemies:
         state.coins += inimigo.reward
         state.kills += 1
-        # Se o boss estava em campo, o hitkill também o derrota: marca a flag
-        # senão a condição de vitória nunca dispara (partida não acaba).
-        if inimigo.name == "Ancelotti":
+        # No modo infinito Ancelotti respawna: não setar boss_defeated (ele não
+        # representa fim de jogo; a flag True quebraria o estado entre boss waves).
+        if inimigo.name == "Ancelotti" and state.modo_dificuldade != "infinito":
             state.boss_defeated = True
         state.death_flashes.append(
             {"x": inimigo.x, "y": inimigo.y, "timer": 0.3, "color": (255, 50, 255)}
@@ -1265,7 +1272,7 @@ def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict], assets) 
             state.projectiles = [p for p in state.projectiles if p.target is not enemy]
             state.death_flashes.append({"x": enemy.x, "y": enemy.y, "timer": 0.3})
             state.kills += 1
-            if enemy.name == "Ancelotti":
+            if enemy.name == "Ancelotti" and state.modo_dificuldade != "infinito":
                 state.boss_defeated = True
 
     # 4. Flashes de morte expiram.
@@ -1435,9 +1442,12 @@ def _processar_bonus_onda_infinita(state: GameState) -> None:
     if waves_agora > state.infinite_waves_completadas:
         bonus = calcular_bonus_wave(waves_agora)
         state.coins += bonus
+        tc_wave = calcular_tc_por_wave(waves_agora)
+        texas_coins.adicionar(tc_wave)
         state.infinite_waves_completadas = waves_agora
         logger.info(
-            "[Infinito] Wave %d completa. Bônus: +%d moedas.", waves_agora, bonus
+            "[Infinito] Wave %d completa. Bônus: +%d moedas, +%d TC.",
+            waves_agora, bonus, tc_wave,
         )
         # Conquistas progressivas — verifica todos os limiares <= waves_agora
         # (retroativo: se waves_agora=30, desbloqueia 10 e 20 também se inéditas).

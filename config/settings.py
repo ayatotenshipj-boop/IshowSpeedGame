@@ -279,7 +279,7 @@ UPGRADE_BTN_BG         = (22, 20, 3)       # #161403 — fundo de botão
 UPGRADE_BTN_BORDA      = (55, 50, 8)       # #373208 — borda de botão
 
 # --- Modo Infinito ---
-INF_BOSS_WAVE_INTERVAL: int = 10       # boss a cada N waves
+INF_BOSS_WAVE_INTERVAL: int = 15       # boss a cada N waves
 INF_BOSS_HP_FATOR: float = 1.4        # HP boss = base × (1.4 ^ n_boss)
 INF_VEL_FATOR: float = 0.015          # velocidade += 1.5% por wave
 INF_VEL_CAP_MULT: float = 2.5         # cap de velocidade em 2.5× da base
@@ -288,3 +288,12 @@ INF_REWARD_CAP_WAVE: int = 100        # scaling de recompensa para após wave 10
 INF_INTERVAL: float = 3.0             # segundos de respiro entre waves
 INF_ANUNCIO_DURATION: float = 2.0     # duração do banner "WAVE N" em segundos
 COR_INF_BADGE: tuple[int, int, int] = (220, 60, 60)   # badge [INFINITO] no HUD
+
+# TexasCoins concedidos ao completar uma wave no Modo Infinito (por faixa).
+# Faixas: wave 1-10 → 25 TC, 11-20 → 50 TC, 21-30 → 75 TC; acima escala +25/10.
+INF_TC_WAVE_FAIXA1: int = 25    # TC por wave completada nas waves 1-10
+INF_TC_WAVE_FAIXA2: int = 50    # TC por wave completada nas waves 11-20
+INF_TC_WAVE_FAIXA3: int = 75    # TC por wave completada nas waves 21-30
+INF_TC_WAVE_ESCALA: int = 25    # incremento de TC a cada 10 waves acima de 30
+INF_CAPACIDADE_MAX: int = 8     # máximo de torres de qualquer tipo no Modo Infinito
+INF_KILLTHATBOY_COOLDOWN: float = 120.0  # cooldown (s) do KillThatBoy no Modo Infinito

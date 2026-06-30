@@ -122,6 +122,8 @@ class InfiniteWaveManager(WaveManager):
                 )
                 if hasattr(inimigo, "_speed_base"):
                     inimigo._speed_base = inimigo.speed
+                # Passa a wave atual para o boss escalar reforços corretamente.
+                inimigo._wave_num = wave_num
             else:
                 base_hp = type(inimigo).max_hp
                 inimigo.max_hp = round(calcular_hp_inimigo(base_hp, wave_num))
