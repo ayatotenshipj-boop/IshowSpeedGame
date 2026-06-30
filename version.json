@@ -1,10 +1,10 @@
 {
-  "version": "1.5.1",
+  "version": "1.5.2",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "v1.5.1 - Correções de bugs\n\n[Correções]\n- Modo Infinito: waves agora esperam todos os inimigos morrerem antes de iniciar a próxima (skip-wave funciona novamente)\n- Modo Infinito: bônus de wave creditado corretamente em moedas de jogo\n- Modo Infinito: TexasCoin concedido ao fim da partida\n- Ancelotti: spawn de Labubu4 refatorado — 3 reforços a cada 8s com 50% de chance, à frente do boss\n- Confirmação de desligar 2× não aparece mais em modos que não são Difícil\n- Speed5: range não é mais destruído ao desativar o buff após upgrade\n- DrivingCarSpeed: fire_rate de torres não fica corrompido se sofrer upgrade durante o buff\n- Multiplayer: botões do lobby (Deck/Voltar) ficam ocultos corretamente atrás do modal\n- Conquistas: scroll com roda do mouse quando há mais de 4 conquistas\n- Leaderboard: race condition corrigida ao trocar de aba rapidamente\n- Painel de torre: posição do painel agora ancora corretamente na torre selecionada\n- HUD/DiffSelector/Changelog: hover de botões correto em fullscreen e janela redimensionada",
+  "changelog": "v1.5.2 - QoL Modo Infinito\n\n[Modo Infinito]\n- Todas as torres têm limite 8 no campo (antes era 4 por tipo)\n- KillThatBoy: recarregável com cooldown de 120s (antes era uso único permanente)\n- KillThatBoy: painel exibe timer de cooldown restante em segundos\n- TexasCoins por kill: wave 1-10 → 25 TC, wave 11-20 → 50 TC, wave 21-30 → 75 TC\n- TexasCoins por kill também concedidos ao usar KillThatBoy\n- Ancelotti aparece a cada 15 waves (antes era a cada 10)\n- Labubu4 invocados pelo Ancelotti: recompensa agora escala pela wave atual\n- Labubu4: spawn corrigido para não sair imediatamente do mapa quando boss está perto do fim\n- Crash corrigido: boss_defeated não é setado no Modo Infinito\n- Admin: leaderboard carregado em thread separada (sem freeze de 5s)\n\n[Código Promo]\n- Adicionado código SpeedINeedThis (+300 TexasCoins)",
   "download_url": {
-    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.1/SpeedVsLabubu-Linux",
-    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.1/SpeedVsLabubu-Windows.exe"
+    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.2/SpeedVsLabubu-Linux",
+    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.2/SpeedVsLabubu-Windows.exe"
   },
   "files": []
 }
