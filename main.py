@@ -55,6 +55,7 @@ from core.updater import Updater
 from core import conquistas, leaderboard, player_profile, preferencias, texas_coins
 from entities.boss import Ancelotti
 from entities.infinite_wave_manager import InfiniteWaveManager
+from entities.impossible_wave_manager import ImpossibleWaveManager
 from entities.tower import SPRITE_SIZE, TOWER_TYPES, Speed5, Speed7
 from entities.wave_manager import WAVES
 from entities.wave_scaler import calcular_bonus_wave, calcular_tc_por_kill
@@ -389,7 +390,10 @@ def main() -> None:
         state.lives = MODOS_DIFICULDADE[modo]["lives"]
         if modo == "infinito":
             state.wave_manager = InfiniteWaveManager()
-            state.waves_congeladas = False  # infinito começa imediatamente
+            state.waves_congeladas = False
+        elif modo == "impossivel":
+            state.wave_manager = ImpossibleWaveManager()
+            state.waves_congeladas = False
         else:
             state.wave_manager.modo = modo
             # Waves congeladas até o seletor de dificuldade confirmar o modo.
@@ -507,6 +511,12 @@ def main() -> None:
                     # Infinito: sem intro, sem seletor de dificuldade.
                     current_screen.destroy()
                     reset_game("infinito")
+                    current_screen = None
+                    state_manager.transition(GameScreen.PLAYING)
+                elif acao == "impossivel":
+                    # Impossível: sem intro, sem seletor de dificuldade.
+                    current_screen.destroy()
+                    reset_game("impossivel")
                     current_screen = None
                     state_manager.transition(GameScreen.PLAYING)
                 elif acao == "deck":
@@ -651,7 +661,7 @@ def main() -> None:
                             n_tipo = sum(1 for t in state.towers if type(t) is tipo)
                             cap_efetiva = (
                                 INF_CAPACIDADE_MAX
-                                if state.modo_dificuldade == "infinito"
+                                if state.modo_dificuldade in ("infinito", "impossivel")
                                 else tipo.max_no_campo
                             )
                             if (
@@ -766,7 +776,7 @@ def main() -> None:
                     current_screen = None
                     modo_anterior = state.modo_dificuldade
                     reset_game(modo_anterior)
-                    if modo_anterior == "infinito":
+                    if modo_anterior in ("infinito", "impossivel"):
                         state_manager.transition(GameScreen.PLAYING)
                     else:
                         diff_selector = DiffSelectorWidget(modo_inicial=modo_anterior)
@@ -1421,11 +1431,12 @@ def _atualizar_cursor(state_manager, state, card_hand) -> None:
 
 
 _LIMIARES_INFINITO: list[tuple[int, str]] = [
-    (10, "inf_wave_10"),
-    (20, "inf_wave_20"),
+    # Alinhados com INF_BOSS_WAVE_INTERVAL (15): conquista dispara junto ao boss.
+    (15, "inf_wave_15"),
     (30, "inf_wave_30"),
-    (40, "inf_wave_40"),
-    (50, "inf_wave_50"),
+    (45, "inf_wave_45"),
+    (60, "inf_wave_60"),
+    (75, "inf_wave_75"),
 ]
 
 

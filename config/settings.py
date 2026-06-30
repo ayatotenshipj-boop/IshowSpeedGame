@@ -103,6 +103,14 @@ MODOS_DIFICULDADE: dict[str, dict] = {
         "lives": 10,
         "descricao": "Sobreviva o máximo de ondas possível",
     },
+    "impossivel": {
+        "nome": "Impossível",
+        "hp_mult": 1.0,
+        "speed_mult": 1.0,
+        "reward_mult": 1.0,
+        "lives": 5,
+        "descricao": "100 Ancelottis. Boa sorte.",
+    },
 }
 
 # --- Cartas e HUD ---
@@ -283,7 +291,8 @@ INF_BOSS_WAVE_INTERVAL: int = 15       # boss a cada N waves
 INF_BOSS_HP_FATOR: float = 1.4        # HP boss = base × (1.4 ^ n_boss)
 INF_VEL_FATOR: float = 0.015          # velocidade += 1.5% por wave
 INF_VEL_CAP_MULT: float = 2.5         # cap de velocidade em 2.5× da base
-INF_QTD_CAP: int = 40                 # máximo de inimigos por wave
+INF_VEL_BUFF_WAVE50: float = 1.5      # multiplicador extra de velocidade a partir da wave 50
+INF_QTD_CAP: int = 120                # máximo de inimigos por wave (wave 50+: dobra a cada wave)
 INF_REWARD_CAP_WAVE: int = 100        # scaling de recompensa para após wave 100
 INF_INTERVAL: float = 3.0             # segundos de respiro entre waves
 INF_ANUNCIO_DURATION: float = 2.0     # duração do banner "WAVE N" em segundos
@@ -296,4 +305,9 @@ INF_TC_WAVE_FAIXA2: int = 50    # TC por wave completada nas waves 11-20
 INF_TC_WAVE_FAIXA3: int = 75    # TC por wave completada nas waves 21-30
 INF_TC_WAVE_ESCALA: int = 25    # incremento de TC a cada 10 waves acima de 30
 INF_CAPACIDADE_MAX: int = 8     # máximo de torres de qualquer tipo no Modo Infinito
-INF_KILLTHATBOY_COOLDOWN: float = 120.0  # cooldown (s) do KillThatBoy no Modo Infinito
+INF_KILLTHATBOY_COOLDOWN: float = 360.0  # cooldown (s) do KillThatBoy no Modo Infinito
+
+# --- Modo Impossível ---
+IMP_ANCELOTTI_COUNT: int = 100       # quantidade total de Ancelottis
+IMP_ANCELOTTI_SPEED: float = 20.0   # velocidade de cada Ancelotti
+IMP_ANCELOTTI_INTERVAL: float = 2.0 # segundos entre spawns

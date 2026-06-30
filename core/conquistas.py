@@ -35,29 +35,55 @@ CONQUISTAS_DEF: dict[str, dict] = {
         "descricao": "Zerou no Difícil com velocidade 2x ativada",
         "icone": "⚡",
     },
-    # Categoria: Modo Infinito
-    "inf_wave_10": {
+    # Categoria: Modo Infinito (alinhadas com boss waves a cada 15)
+    "inf_wave_15": {
         "nome": "Só começando",
+        "descricao": "Sobreviveu até a wave 15 no Modo Infinito",
+        "icone": "🌀",
+    },
+    "inf_wave_30": {
+        "nome": "Pegando o ritmo",
+        "descricao": "Sobreviveu até a wave 30 no Modo Infinito",
+        "icone": "🌀",
+    },
+    "inf_wave_45": {
+        "nome": "Sem parar",
+        "descricao": "Sobreviveu até a wave 45 no Modo Infinito",
+        "icone": "🌀",
+    },
+    "inf_wave_60": {
+        "nome": "Isso é sério",
+        "descricao": "Sobreviveu até a wave 60 no Modo Infinito",
+        "icone": "🌀",
+    },
+    "inf_wave_75": {
+        "nome": "Lendário",
+        "descricao": "Sobreviveu até a wave 75 no Modo Infinito",
+        "icone": "🏆",
+    },
+    "vitoria_impossivel": {
+        "nome": "Impossível? Feito.",
+        "descricao": "Derrotou 100 Ancelottis no Modo Impossível",
+        "icone": "💀",
+    },
+    # IDs legados — mantidos para jogadores que já desbloquearam (não disparados mais)
+    "inf_wave_10": {
+        "nome": "Só começando (legado)",
         "descricao": "Sobreviveu até a wave 10 no Modo Infinito",
         "icone": "🌀",
     },
     "inf_wave_20": {
-        "nome": "Pegando o ritmo",
+        "nome": "Pegando o ritmo (legado)",
         "descricao": "Sobreviveu até a wave 20 no Modo Infinito",
         "icone": "🌀",
     },
-    "inf_wave_30": {
-        "nome": "Sem parar",
-        "descricao": "Sobreviveu até a wave 30 no Modo Infinito",
-        "icone": "🌀",
-    },
     "inf_wave_40": {
-        "nome": "Isso é sério",
+        "nome": "Isso é sério (legado)",
         "descricao": "Sobreviveu até a wave 40 no Modo Infinito",
         "icone": "🌀",
     },
     "inf_wave_50": {
-        "nome": "Lendário",
+        "nome": "Lendário (legado)",
         "descricao": "Sobreviveu até a wave 50 no Modo Infinito",
         "icone": "🏆",
     },

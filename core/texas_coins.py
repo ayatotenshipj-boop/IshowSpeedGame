@@ -29,10 +29,11 @@ MAX_COPIAS_DCS: int = 1
 
 # Coins ganhos ao VENCER uma fase (chave = modo_dificuldade ou "dificil_2x").
 GANHO_POR_MODO: dict[str, int] = {
-    "facil":      1,
-    "normal":     5,
-    "dificil":   15,
+    "facil":       1,
+    "normal":      5,
+    "dificil":    15,
     "dificil_2x": 25,
+    "impossivel": 100,
 }
 
 

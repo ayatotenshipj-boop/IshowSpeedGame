@@ -1,10 +1,10 @@
 {
-  "version": "1.5.2",
+  "version": "1.6.0",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "v1.5.2 - QoL Modo Infinito\n\n[Modo Infinito]\n- Todas as torres têm limite 8 no campo (antes era 4 por tipo)\n- KillThatBoy: recarregável com cooldown de 120s (antes era uso único permanente)\n- KillThatBoy: painel exibe timer de cooldown restante em segundos\n- TexasCoins por kill: wave 1-10 → 25 TC, wave 11-20 → 50 TC, wave 21-30 → 75 TC\n- TexasCoins por kill também concedidos ao usar KillThatBoy\n- Ancelotti aparece a cada 15 waves (antes era a cada 10)\n- Labubu4 invocados pelo Ancelotti: recompensa agora escala pela wave atual\n- Labubu4: spawn corrigido para não sair imediatamente do mapa quando boss está perto do fim\n- Crash corrigido: boss_defeated não é setado no Modo Infinito\n- Admin: leaderboard carregado em thread separada (sem freeze de 5s)\n\n[Código Promo]\n- Adicionado código SpeedINeedThis (+300 TexasCoins)",
+  "changelog": "v1.6.0 - Modo Impossível e balanceamento Infinito\n\n[NOVO: Modo Impossível]\n- 100 Ancelottis com velocidade 20, um a cada 2s\n- 5 vidas, limite de 8 torres (igual Infinito)\n- Vitória ao derrotar todos os 100 → conquista exclusiva + 100 TC\n- Botão IMPOSSÍVEL no Lobby → Modos de Jogo\n\n[Modo Infinito — Balanceamento]\n- KillThatBoy: cooldown triplicado para 360s (era 120s)\n- Labubus a partir da wave 50: velocidade ×1.5\n- Wave 51+: quantidade de inimigos dobra a cada wave (cap 120)\n- Conquistas realinhadas com boss waves (a cada 15): wave 15, 30, 45, 60, 75\n\n[Conquistas]\n- Nova conquista: Impossível? Feito. (Modo Impossível)\n- Conquistas antigas de Infinito preservadas como legado",
   "download_url": {
-    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.2/SpeedVsLabubu-Linux",
-    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.2/SpeedVsLabubu-Windows.exe"
+    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.6.0/SpeedVsLabubu-Linux",
+    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.6.0/SpeedVsLabubu-Windows.exe"
   },
   "files": []
 }

@@ -106,14 +106,18 @@ class LobbyScreen:
             text="INFINITO",
             manager=manager,
         )
-
-        self.btn_multi = pygame_gui.elements.UIButton(
+        self.btn_impossivel = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(_MODE_BTN_X, y0 + gap * 2, _MODE_BTN_W, _MODE_BTN_H),
+            text="IMPOSSÍVEL",
+            manager=manager,
+        )
+        self.btn_multi = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(_MODE_BTN_X, y0 + gap * 3, _MODE_BTN_W, _MODE_BTN_H),
             text="MULTIJOGADOR",
             manager=manager,
         )
         self.btn_deck = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(_MODE_BTN_X, y0 + gap * 3, _MODE_BTN_W, _MODE_BTN_H),
+            relative_rect=pygame.Rect(_MODE_BTN_X, y0 + gap * 4, _MODE_BTN_W, _MODE_BTN_H),
             text="GERENCIAR DECK",
             manager=manager,
         )
@@ -146,11 +150,12 @@ class LobbyScreen:
     # ── Estado ───────────────────────────────────────────────────────────────
     def _aplicar_estado(self, estado: str) -> None:
         self._estado = estado
-        for b in (self.btn_casual, self.btn_infinito, self.btn_multi, self.btn_deck,
-                  self.btn_roll_1x, self.btn_roll_10x):
+        for b in (self.btn_casual, self.btn_infinito, self.btn_impossivel, self.btn_multi,
+                  self.btn_deck, self.btn_roll_1x, self.btn_roll_10x):
             b.hide()
         if estado == "modos":
-            for b in (self.btn_casual, self.btn_infinito, self.btn_multi, self.btn_deck):
+            for b in (self.btn_casual, self.btn_infinito, self.btn_impossivel,
+                      self.btn_multi, self.btn_deck):
                 b.show()
         elif estado == "store":
             self._atualizar_btns_roll()
@@ -174,8 +179,8 @@ class LobbyScreen:
             if self._sub.handle_event(event) == "close":
                 self._sub.destroy()
                 self._sub = None
-                for b in (self.btn_casual, self.btn_infinito, self.btn_multi,
-                           self.btn_deck, self.btn_voltar):
+                for b in (self.btn_casual, self.btn_infinito, self.btn_impossivel,
+                           self.btn_multi, self.btn_deck, self.btn_voltar):
                     b.show()
             return None
 
@@ -200,13 +205,15 @@ class LobbyScreen:
                 return "casual"
             if event.ui_element == self.btn_infinito:
                 return "infinito"
+            if event.ui_element == self.btn_impossivel:
+                return "impossivel"
             if event.ui_element == self.btn_deck:
                 return "deck"
             if event.ui_element == self.btn_multi:
                 from ui.menus import MultijogadorScreen
                 self._sub = MultijogadorScreen(self._manager)
-                for b in (self.btn_casual, self.btn_infinito, self.btn_multi,
-                           self.btn_deck, self.btn_voltar):
+                for b in (self.btn_casual, self.btn_infinito, self.btn_impossivel,
+                           self.btn_multi, self.btn_deck, self.btn_voltar):
                     b.hide()
             if event.ui_element == self.btn_roll_1x:
                 self._resultado_roll = texas_coins.rolar(1)
@@ -284,11 +291,12 @@ class LobbyScreen:
         return p
 
     def _draw_modos(self, surface: pygame.Surface) -> None:
-        p = self._draw_painel_sub(surface, "MODOS DE JOGO")
+        self._draw_painel_sub(surface, "MODOS DE JOGO")
 
         descs = [
             "Experiencia completa com selecao de dificuldade.",
             "Sobreviva o maximo de ondas possivel.",
+            "100 Ancelottis. Sem parar. Boa sorte.",
             "Enfrente outros jogadores — em breve!",
         ]
         y0 = _SUB_Y + 80
@@ -298,16 +306,6 @@ class LobbyScreen:
             surface.blit(txt, txt.get_rect(
                 center=(_MODE_BTN_X + _MODE_BTN_W // 2, y0 + gap * i + _MODE_BTN_H + 9)
             ))
-
-        earn_y = p.bottom - 110
-        pygame.draw.line(surface, COR_HUD_BORDA, (p.x, earn_y - 8), (p.right, earn_y - 8), 1)
-        lbl = self._fonte_label.render("Como ganhar TexasCoin:", True, COR_LABEL_HUD)
-        surface.blit(lbl, (p.x + _PAD, earn_y))
-        for i, (nome, qtd) in enumerate([
-            ("Facil", 1), ("Normal", 5), ("Dificil", 15), ("Dificil 2x", 25),
-        ]):
-            linha = self._fonte_label.render(f"  {nome}: +{qtd} TC ao vencer", True, COR_TEXTO)
-            surface.blit(linha, (p.x + _PAD, earn_y + 16 + i * 18))
 
     def _draw_store(self, surface: pygame.Surface) -> None:
         saldo = texas_coins.get_saldo()
@@ -431,6 +429,6 @@ class LobbyScreen:
         if self._sub is not None:
             self._sub.destroy()
             self._sub = None
-        for b in (self.btn_casual, self.btn_infinito, self.btn_multi, self.btn_deck,
-                  self.btn_roll_1x, self.btn_roll_10x, self.btn_voltar):
+        for b in (self.btn_casual, self.btn_infinito, self.btn_impossivel, self.btn_multi,
+                  self.btn_deck, self.btn_roll_1x, self.btn_roll_10x, self.btn_voltar):
             b.kill()

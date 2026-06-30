@@ -13,6 +13,7 @@ from config.settings import (
     INF_TC_WAVE_FAIXA1,
     INF_TC_WAVE_FAIXA2,
     INF_TC_WAVE_FAIXA3,
+    INF_VEL_BUFF_WAVE50,
     INF_VEL_CAP_MULT,
     INF_VEL_FATOR,
 )
@@ -38,21 +39,33 @@ def calcular_hp_inimigo(hp_base: float, wave: int) -> float:
 
 
 def calcular_velocidade_inimigo(vel_base: float, wave: int) -> float:
-    """Velocidade escala 1.5%/wave, cap em INF_VEL_CAP_MULT× da base."""
+    """Velocidade escala 1.5%/wave, cap em INF_VEL_CAP_MULT× da base.
+
+    A partir da wave 50, aplica multiplicador extra INF_VEL_BUFF_WAVE50.
+    """
     fator = min(1.0 + wave * INF_VEL_FATOR, INF_VEL_CAP_MULT)
+    if wave >= 50:
+        fator *= INF_VEL_BUFF_WAVE50
     return vel_base * fator
 
 
 def calcular_quantidade_inimigos(wave: int) -> int:
-    """Quantidade de inimigos por wave, com cap em INF_QTD_CAP."""
+    """Quantidade de inimigos por wave, com cap em INF_QTD_CAP.
+
+    A partir da wave 51, dobra em relação à wave anterior (exponencial),
+    até atingir INF_QTD_CAP.
+    """
     if wave <= 5:
         qtd = 3 + wave           # 4, 5, 6, 7, 8
     elif wave <= 15:
         qtd = 8 + (wave - 5)    # 9 … 18
     elif wave <= 30:
         qtd = 18 + (wave - 15)  # 19 … 33
+    elif wave <= 50:
+        qtd = 33 + (wave - 30) // 5  # cresce devagar até 37
     else:
-        qtd = 33 + (wave - 30) // 5  # cresce mais devagar
+        _base_50 = 33 + (50 - 30) // 5  # 37
+        qtd = _base_50 * (2 ** (wave - 50))
     return min(qtd, INF_QTD_CAP)
 
 

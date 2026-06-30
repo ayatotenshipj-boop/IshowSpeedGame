@@ -199,7 +199,7 @@ class CardHand:
             (HUD_RECT.x + 16, HUD_RECT.y + HUD_RECT.height // 2 - txt_moedas.get_height() // 2),
         )
 
-        _modo_inf = modo == "infinito"
+        _modo_inf = modo in ("infinito", "impossivel")
 
         for i, (rect, tipo, sprite) in enumerate(
             zip(self._rects, self.tipos, self._sprites)
