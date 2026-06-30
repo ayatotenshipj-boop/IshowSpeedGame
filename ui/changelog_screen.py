@@ -275,7 +275,8 @@ class ChangelogScreen:
         return False
 
     # ── Render ────────────────────────────────────────────────────────────────
-    def draw(self, surface: pygame.Surface) -> None:
+    def draw(self, surface: pygame.Surface,
+             mouse_pos: tuple[int, int] | None = None) -> None:
         # Overlay escuro
         ov = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         ov.fill((0, 0, 0, 210))
@@ -298,7 +299,7 @@ class ChangelogScreen:
                          (px, py + self.HEADER_H - 1), (px + self.PAINEL_W, py + self.HEADER_H - 1))
 
         # Botão ×
-        mx, my = pygame.mouse.get_pos()
+        mx, my = mouse_pos if mouse_pos is not None else pygame.mouse.get_pos()
         x_hover = self._x_rect.collidepoint(mx, my)
         cor_x = COR_VERMELHO if x_hover else _COR_X_NORMAL
         cor_xb = COR_VERMELHO if x_hover else _COR_X_BORDA

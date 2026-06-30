@@ -30,6 +30,13 @@ _COR_MEDALHA: dict[str, tuple[int, int, int]] = {
 }
 
 
+_CARD_H: int = 74
+_CARD_GAP: int = 6
+_CARD_STRIDE: int = _CARD_H + _CARD_GAP
+_HEADER_H: int = 60   # altura reservada ao cabeçalho
+_FOOTER_H: int = 70   # altura reservada ao botão Fechar
+
+
 class ConquistasScreen:
     """Painel central com as conquistas e seu estado de desbloqueio."""
 
@@ -46,6 +53,12 @@ class ConquistasScreen:
         # Lê o estado real ao abrir.
         self._conquistas = conquistas.get_todas()
 
+        # Scroll — necessário quando conquistas excedem área visível.
+        self._scroll: int = 0
+        conteudo_h = len(self._conquistas) * _CARD_STRIDE
+        area_h = self._painel.height - _HEADER_H - _FOOTER_H
+        self._max_scroll: int = max(0, conteudo_h - area_h)
+
         self.botao_fechar = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(CENTRO_X - 90, self._painel.bottom - 70, 180, 50),
             text="Fechar",
@@ -53,10 +66,12 @@ class ConquistasScreen:
         )
 
     def handle_event(self, event: pygame.event.Event) -> str | None:
-        """Retorna 'close' quando o botão Fechar é pressionado."""
+        """Retorna 'close' quando o botão Fechar é pressionado. Trata scroll da lista."""
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
             if event.ui_element == self.botao_fechar:
                 return "close"
+        if event.type == pygame.MOUSEWHEEL:
+            self._scroll = max(0, min(self._scroll - event.y * 20, self._max_scroll))
         return None
 
     def draw(self, surface: pygame.Surface) -> None:
@@ -74,13 +89,28 @@ class ConquistasScreen:
         hdr = self._fonte_header.render("CONQUISTAS", True, COR_DOURADO)
         surface.blit(hdr, (p.x + 20, p.y + 15))
 
-        # Cards de conquistas.
-        y = p.y + 60
-        card_h = 74
-        card_gap = 6
+        # Área scrollável — clip impede cards de vazar sobre header e footer.
+        area_top = p.y + _HEADER_H
+        area_bottom = p.bottom - _FOOTER_H
+        area_rect = pygame.Rect(p.x, area_top, p.width, area_bottom - area_top)
+        prev_clip = surface.get_clip()
+        surface.set_clip(area_rect)
+
+        y = area_top - self._scroll
         for c in self._conquistas:
             self._desenhar_card(surface, c, y)
-            y += card_h + card_gap
+            y += _CARD_STRIDE
+
+        surface.set_clip(prev_clip)
+
+        # Indicador de scroll (barra lateral discreta) quando há conteúdo fora.
+        if self._max_scroll > 0:
+            bar_x = p.right - 8
+            bar_h = area_rect.height
+            thumb_h = max(20, bar_h * bar_h // (bar_h + self._max_scroll))
+            thumb_y = area_top + int((bar_h - thumb_h) * self._scroll / self._max_scroll)
+            pygame.draw.rect(surface, (40, 38, 20), pygame.Rect(bar_x, area_top, 6, bar_h))
+            pygame.draw.rect(surface, COR_DOURADO_ESCURO, pygame.Rect(bar_x, thumb_y, 6, thumb_h), border_radius=3)
 
     def _desenhar_card(self, surface: pygame.Surface, c: dict, y: int) -> None:
         """Conquista-card: medalha + nome + descrição."""

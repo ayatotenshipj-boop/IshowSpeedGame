@@ -284,6 +284,8 @@ class Speed5(Tower):
             )
         except KeyError:
             self._sprite_buff = self._sprite_base  # asset ausente: mantém o base
+        # Snapshot do range antes do buff (inclui bônus de upgrades).
+        self._range_pre_buff: int = self.range_px
 
     # Intervalo AOE do buff (segundos entre disparos em área).
     BUFF_AOE_INTERVAL: float = 6.0
@@ -296,7 +298,10 @@ class Speed5(Tower):
             self.buff_active = True
             self.buff_timer = self.BUFF_DURATION
             self.sprite = self._sprite_buff
-            self.range_px = round(type(self).range_px * self.BUFF_RANGE_MULT)
+            # Salva o range atual (pós-upgrade) antes de ampliar — sem isso o
+            # upgrade de alcance seria perdido ao desativar o buff.
+            self._range_pre_buff = self.range_px
+            self.range_px = round(self.range_px * self.BUFF_RANGE_MULT)
             self.fire_timer = 0.0  # dispara imediatamente na ativação
             return True
         return False
@@ -305,7 +310,7 @@ class Speed5(Tower):
         self.buff_active = False
         self.cooldown_timer = self.buff_cooldown
         self.sprite = self._sprite_base
-        self.range_px = type(self).range_px  # restaura range original
+        self.range_px = self._range_pre_buff  # restaura snapshot (pós-upgrade)
 
     def refresh_sprite(self) -> None:
         """Restaura sprite correto após efeito do Speed7."""

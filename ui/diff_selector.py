@@ -122,12 +122,13 @@ class DiffSelectorWidget:
         return None
 
     # ── Render ────────────────────────────────────────────────────────────────
-    def draw(self, surface: pygame.Surface) -> None:
+    def draw(self, surface: pygame.Surface,
+             mouse_pos: tuple[int, int] | None = None) -> None:
         if not self.visible:
             return
 
         p = self._panel
-        mx, my = pygame.mouse.get_pos()
+        mx, my = mouse_pos if mouse_pos is not None else pygame.mouse.get_pos()
 
         # Fundo semi-transparente do painel.
         self._overlay_surf.fill((0, 0, 0, 0))

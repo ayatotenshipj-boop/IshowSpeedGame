@@ -216,7 +216,10 @@ def resgatar_codigo(codigo: str) -> dict:
         return {"erro": "arquivo_ausente"}
 
     try:
-        codigos: dict = json.loads(_CODIGOS_PATH.read_text(encoding="utf-8"))
+        codigos: dict = {
+            k.upper(): v
+            for k, v in json.loads(_CODIGOS_PATH.read_text(encoding="utf-8")).items()
+        }
     except Exception as e:  # noqa: BLE001
         logger.warning("Erro ao ler codigos_promo.json: %s", e)
         return {"erro": "arquivo_ausente"}

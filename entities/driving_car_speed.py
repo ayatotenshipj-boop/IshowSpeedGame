@@ -41,7 +41,10 @@ class DrivingCarSpeed(Tower):
         self.skill_ativa: bool = False
         self.skill_timer: float = 0.0
         self.cooldown_timer: float = 0.0
-        self._towers_buffadas: list = []  # referências das torres que receberam o buff
+        # Tuplas (torre, fire_rate_original) — restaura por snapshot, não por divisão.
+        # Divisão acumularia erro flutuante e quebraria se a torre sofresse upgrade
+        # durante o buff (fire_rate seria reescrito pelo apply_upgrade).
+        self._towers_buffadas: list[tuple] = []
 
     def _buff_mult(self) -> float:
         """Multiplicador conforme nível: 1.8× (nível 1), 2.0× (nível 2), 2.2× (nível 3)."""
@@ -63,8 +66,11 @@ class DrivingCarSpeed(Tower):
             return False
 
         mult = self._buff_mult()
-        self._towers_buffadas = [t for t in towers if t is not self and t.fire_rate > 0]
-        for t in self._towers_buffadas:
+        elegíveis = [t for t in towers if t is not self and t.fire_rate > 0]
+        # Snapshot do fire_rate antes do buff — restauração por atribuição direta
+        # evita erro com upgrades feitos durante o buff ou mudança de nível da DCS.
+        self._towers_buffadas = [(t, t.fire_rate) for t in elegíveis]
+        for t, _ in self._towers_buffadas:
             t.fire_rate *= mult
 
         self.skill_ativa = True
@@ -77,11 +83,9 @@ class DrivingCarSpeed(Tower):
         return True
 
     def _desativar_skill(self) -> None:
-        """Reverte o buff de fire_rate usando divisão (evita acúmulo de erro)."""
-        mult = self._buff_mult()
-        for t in self._towers_buffadas:
-            if t.fire_rate > 0:
-                t.fire_rate /= mult
+        """Reverte fire_rate pelo snapshot capturado na ativação."""
+        for t, fire_rate_original in self._towers_buffadas:
+            t.fire_rate = fire_rate_original
         self._towers_buffadas = []
         self.skill_ativa = False
         self.cooldown_timer = BUFF_COOLDOWN

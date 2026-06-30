@@ -99,6 +99,7 @@ class HUD:
         auto_skip: bool = False,
         modo_infinito: bool = False,
         prox_boss_wave: int | None = None,
+        mouse_pos: tuple[int, int] | None = None,
     ) -> None:
         bx = MAP_RECT.x
         by = MAP_RECT.y
@@ -156,7 +157,7 @@ class HUD:
         self._stat(surface, x, meio_y, "Vidas", str(lives), cor_vida)
 
         # ── Botões à direita ─────────────────────────────────────────────────
-        mx, my = pygame.mouse.get_pos()
+        mx, my = mouse_pos if mouse_pos is not None else pygame.mouse.get_pos()
 
         ativo_2x = speed_multiplier >= 2.0
         self._botao_hud(

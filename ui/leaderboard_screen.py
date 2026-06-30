@@ -61,7 +61,10 @@ class LeaderboardScreen:
         # Estado da busca (preenchido pela thread).
         self.carregando: bool = True
         self.entradas: list[dict] = []
-        threading.Thread(target=self._buscar, daemon=True).start()
+        # Geração da busca: incrementada a cada troca de aba para invalidar
+        # resultados de threads anteriores que cheguem atrasados.
+        self._gen: int = 0
+        threading.Thread(target=self._buscar, args=(self._gen,), daemon=True).start()
 
         self.botao_fechar = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(CENTRO_X - 90, self._painel.bottom - 70, 180, 48),
@@ -69,16 +72,19 @@ class LeaderboardScreen:
             manager=manager,
         )
 
-    def _buscar(self) -> None:
-        """Busca o top 10 da categoria ativa (thread); ao terminar marca carregando=False."""
-        self.entradas = buscar_top10(self._categoria_ativa)
-        self.carregando = False
+    def _buscar(self, gen: int) -> None:
+        """Busca top 10 da categoria ativa; descarta resultado se a aba mudou."""
+        entradas = buscar_top10(self._categoria_ativa)
+        if gen == self._gen:  # ignora thread obsoleta de aba anterior
+            self.entradas = entradas
+            self.carregando = False
 
     def _rebuscar(self) -> None:
         """Reinicia a busca ao trocar de categoria; exibe 'Buscando...' enquanto aguarda."""
         self.carregando = True
         self.entradas = []
-        threading.Thread(target=self._buscar, daemon=True).start()
+        self._gen += 1
+        threading.Thread(target=self._buscar, args=(self._gen,), daemon=True).start()
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         """Retorna True quando FECHAR é pressionado; trata cliques nas abas de categoria."""

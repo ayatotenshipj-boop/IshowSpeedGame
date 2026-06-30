@@ -55,6 +55,7 @@ from entities.boss import Ancelotti
 from entities.infinite_wave_manager import InfiniteWaveManager
 from entities.tower import SPRITE_SIZE, TOWER_TYPES, Speed5, Speed7
 from entities.wave_manager import WAVES
+from entities.wave_scaler import calcular_bonus_wave
 from map.game_map import GameMap
 from map.placement_grid import PlacementGrid
 from ui.card_hand import CardHand
@@ -580,7 +581,11 @@ def main() -> None:
                         # prioridade máxima — evitam posicionar torre por baixo.
                         if hud.speed_button_rect().collidepoint(pos):
                             if state.speed_multiplier >= 2.0:
-                                state.confirmando_desligar_2x = True
+                                # Confirmação só em hard+2x: desativar invalida run do leaderboard.
+                                if state.modo_dificuldade == "dificil" and state.iniciou_em_2x:
+                                    state.confirmando_desligar_2x = True
+                                else:
+                                    state.speed_multiplier = 1.0
                             else:
                                 state.speed_multiplier = 2.0
                                 if state.tempo_inicio == 0.0 and state.modo_dificuldade == "dificil":
@@ -692,6 +697,8 @@ def main() -> None:
                                 ),
                                 daemon=True,
                             ).start()
+                            tc_ganho = max(1, waves_final // 5)
+                            texas_coins.adicionar(tc_ganho)
                         state_manager.transition(GameScreen.GAME_OVER)
                         current_screen = GameOverScreen(
                             ui_manager,
@@ -716,8 +723,8 @@ def main() -> None:
                             state.modo_dificuldade, "normal_speedrun"
                         )
                         threading.Thread(
-                            target=lambda nome=resultado, cat=category: leaderboard.registrar_vitoria(
-                                nome, state.tempo_vitoria, cat
+                            target=lambda nome=resultado, cat=category, tempo=state.tempo_vitoria: leaderboard.registrar_vitoria(
+                                nome, tempo, cat
                             ),
                             daemon=True,
                         ).start()
@@ -835,6 +842,13 @@ def main() -> None:
                 audio.parar()
                 audio.iniciar_fundo()
                 if state.modo_dificuldade == "infinito":
+                    # Garante contador correto mesmo se jogador morrer mid-wave ou com
+                    # inimigos vivos (wm.current_wave = waves com spawn concluído).
+                    wm_inf = state.wave_manager
+                    if isinstance(wm_inf, InfiniteWaveManager):
+                        state.infinite_waves_completadas = max(
+                            state.infinite_waves_completadas, wm_inf.current_wave
+                        )
                     # Infinito: pede nome para o leaderboard antes de mostrar game over.
                     state_manager.transition(GameScreen.NOME_VITORIA)
                     current_screen = NomeVitoriaScreen(
@@ -868,11 +882,20 @@ def main() -> None:
                 if state.tempo_inicio > 0.0:
                     state.tempo_vitoria = state.tempo_decorrido
                 state_manager.transition(GameScreen.NOME_VITORIA)
-                # Busca record anterior para informar o jogador se não bateu.
-                _record_atual = leaderboard.buscar_record_proprio()
                 current_screen = NomeVitoriaScreen(
-                    ui_manager, state.tempo_vitoria, record_anterior=_record_atual
+                    ui_manager, state.tempo_vitoria, record_anterior=None
                 )
+                # Busca record em background — atualiza a tela quando chegar.
+                # Atribuição de atributo é atômica sob GIL; sem lock necessário.
+                _nome_screen_ref = current_screen
+                threading.Thread(
+                    target=lambda: setattr(
+                        _nome_screen_ref,
+                        "_record_anterior",
+                        leaderboard.buscar_record_proprio(),
+                    ),
+                    daemon=True,
+                ).start()
 
         # Cursor conforme o contexto (apenas em jogo).
         _atualizar_cursor(state_manager, state, card_hand)
@@ -940,13 +963,14 @@ def main() -> None:
                 auto_skip=state.auto_skip,
                 modo_infinito=_modo_inf,
                 prox_boss_wave=_prox_boss,
+                mouse_pos=to_render(pygame.mouse.get_pos()),
             )
             # Seletor de dificuldade in-game (se visível).
             if (
                 state_manager.current == GameScreen.PLAYING
                 and diff_selector is not None
             ):
-                diff_selector.draw(render_surface)
+                diff_selector.draw(render_surface, mouse_pos=to_render(pygame.mouse.get_pos()))
 
             # Tooltip da carta sob o cursor (apenas em jogo, por cima de tudo).
             if state_manager.current == GameScreen.PLAYING:
@@ -963,7 +987,7 @@ def main() -> None:
         if leaderboard_screen is not None:
             leaderboard_screen.draw(render_surface)
         if changelog_screen is not None:
-            changelog_screen.draw(render_surface)
+            changelog_screen.draw(render_surface, mouse_pos=to_render(pygame.mouse.get_pos()))
 
         # Modal de confirmação de desligar 2×.
         if state_manager.current == GameScreen.PLAYING and state.confirmando_desligar_2x:
@@ -1202,16 +1226,9 @@ def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict], assets) 
         if proj.update(dt):
             if not proj.target.is_dead():
                 if isinstance(proj.target, Ancelotti):
-                    # Stun (30%) e invocação de Labubu4 por timer/hit,
-                    # encapsulados no boss. Sem dano duplicado (receber_dano já
-                    # aplica o dano).
                     if random.random() < proj.target.stun_chance:
                         proj.target.apply_stun(1.5)
-                    mui = proj.target.receber_dano(
-                        proj.damage, state.wave, assets, waypoints
-                    )
-                    if mui is not None:
-                        state.enemies.append(mui)
+                    proj.target.receber_dano(proj.damage, state.wave)
                 else:
                     proj.target.hp -= proj.damage
                     if proj.apply_slow:
@@ -1230,8 +1247,8 @@ def _atualizar_jogo(dt: float, state: GameState, waypoints: list[dict], assets) 
         else:
             reached_end, spawned = result, None
 
-        if spawned is not None:
-            state.enemies.append(spawned)
+        if spawned:
+            state.enemies.extend(spawned)
             # Flash amarelo sinalizando o reforço invocado.
             state.death_flashes.append(
                 {"x": enemy.x, "y": enemy.y, "timer": 0.5,
@@ -1391,6 +1408,15 @@ def _atualizar_cursor(state_manager, state, card_hand) -> None:
         _definir_cursor(pygame.SYSTEM_CURSOR_ARROW)
 
 
+_LIMIARES_INFINITO: list[tuple[int, str]] = [
+    (10, "inf_wave_10"),
+    (20, "inf_wave_20"),
+    (30, "inf_wave_30"),
+    (40, "inf_wave_40"),
+    (50, "inf_wave_50"),
+]
+
+
 def _processar_bonus_onda_infinita(state: GameState) -> None:
     """Detecta conclusão de wave no modo infinito e credita o bônus.
 
@@ -1398,7 +1424,6 @@ def _processar_bonus_onda_infinita(state: GameState) -> None:
     concluída quando o spawn terminou (wave_active=False) e todos os inimigos
     foram eliminados (enemies vazia). O bônus é creditado uma única vez por wave.
     """
-    from entities.wave_scaler import calcular_bonus_wave
     wm = state.wave_manager
     if not isinstance(wm, InfiniteWaveManager):
         return
@@ -1412,17 +1437,10 @@ def _processar_bonus_onda_infinita(state: GameState) -> None:
         state.coins += bonus
         state.infinite_waves_completadas = waves_agora
         logger.info(
-            "[Infinito] Wave %d completa. Bônus: +%d TexasCoins.", waves_agora, bonus
+            "[Infinito] Wave %d completa. Bônus: +%d moedas.", waves_agora, bonus
         )
         # Conquistas progressivas — verifica todos os limiares <= waves_agora
         # (retroativo: se waves_agora=30, desbloqueia 10 e 20 também se inéditas).
-        _LIMIARES_INFINITO = [
-            (10, "inf_wave_10"),
-            (20, "inf_wave_20"),
-            (30, "inf_wave_30"),
-            (40, "inf_wave_40"),
-            (50, "inf_wave_50"),
-        ]
         for limiar, cid in _LIMIARES_INFINITO:
             if waves_agora >= limiar and conquistas.desbloquear(cid):
                 state.conquista_banner = conquistas.CONQUISTAS_DEF[cid]

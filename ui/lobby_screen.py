@@ -174,7 +174,8 @@ class LobbyScreen:
             if self._sub.handle_event(event) == "close":
                 self._sub.destroy()
                 self._sub = None
-                for b in (self.btn_casual, self.btn_infinito, self.btn_multi):
+                for b in (self.btn_casual, self.btn_infinito, self.btn_multi,
+                           self.btn_deck, self.btn_voltar):
                     b.show()
             return None
 
@@ -204,7 +205,8 @@ class LobbyScreen:
             if event.ui_element == self.btn_multi:
                 from ui.menus import MultijogadorScreen
                 self._sub = MultijogadorScreen(self._manager)
-                for b in (self.btn_casual, self.btn_infinito, self.btn_multi):
+                for b in (self.btn_casual, self.btn_infinito, self.btn_multi,
+                           self.btn_deck, self.btn_voltar):
                     b.hide()
             if event.ui_element == self.btn_roll_1x:
                 self._resultado_roll = texas_coins.rolar(1)

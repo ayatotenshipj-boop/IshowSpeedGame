@@ -20,6 +20,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from config.secrets import SUPABASE_KEY, SUPABASE_URL
+
 logger = logging.getLogger(__name__)
 
 
@@ -364,7 +366,8 @@ def formatar_tempo(segundos: float | int | None) -> str:
     except (ValueError, TypeError):
         s = 0.0
         
-    m = int(s) // 60
-    sec = int(s) % 60
-    d = int((s - int(s)) * 10)
+    total_decimos = int(round(s * 10))
+    m = total_decimos // 600
+    sec = (total_decimos % 600) // 10
+    d = total_decimos % 10
     return f"{m:02d}:{sec:02d}.{d}"

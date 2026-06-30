@@ -1,10 +1,10 @@
 {
-  "version": "1.5.0",
+  "version": "1.5.1",
   "name": "Speed Vs Labubu Remake",
-  "changelog": "v1.5.0 - A Grande Atualização\n\n[Novidades]\n- Modo Infinito: waves sem fim, boss a cada 10 waves, bônus escalável por wave\n- DrivingCar Speed (carta limitada): buffer +80/120% SPA com sistema de pity 120 pulls\n- Deck Builder: monte seu time antes da partida\n- SetPriority: escolha o alvo de cada torre (Primeiro/Último/Mais Forte/Mais Fraco)\n- Leaderboard com 3 categorias separadas: Normal, Difícil e Infinito\n- 5 novas conquistas do Modo Infinito (wave 10/20/30/40/50)\n\n[Correções]\n- Killthatboy, ShockedSpeed e Kindahomeless com Full AOE fixo\n- Inventário/deck corrigido: sem quantidade negativa, vender devolve carta\n- Pity da DrivingCarSpeed persiste entre sessões\n- Leaderboard não trava se Supabase estiver offline\n- pawn usa delta time (sem aceleração estranha em máquinas rápidas)\n- Ancelotti não pode morrer duas vezes\n- Buff de SPA revertido ao vender DrivingCarSpeed com skill ativa",
+  "changelog": "v1.5.1 - Correções de bugs\n\n[Correções]\n- Modo Infinito: waves agora esperam todos os inimigos morrerem antes de iniciar a próxima (skip-wave funciona novamente)\n- Modo Infinito: bônus de wave creditado corretamente em moedas de jogo\n- Modo Infinito: TexasCoin concedido ao fim da partida\n- Ancelotti: spawn de Labubu4 refatorado — 3 reforços a cada 8s com 50% de chance, à frente do boss\n- Confirmação de desligar 2× não aparece mais em modos que não são Difícil\n- Speed5: range não é mais destruído ao desativar o buff após upgrade\n- DrivingCarSpeed: fire_rate de torres não fica corrompido se sofrer upgrade durante o buff\n- Multiplayer: botões do lobby (Deck/Voltar) ficam ocultos corretamente atrás do modal\n- Conquistas: scroll com roda do mouse quando há mais de 4 conquistas\n- Leaderboard: race condition corrigida ao trocar de aba rapidamente\n- Painel de torre: posição do painel agora ancora corretamente na torre selecionada\n- HUD/DiffSelector/Changelog: hover de botões correto em fullscreen e janela redimensionada",
   "download_url": {
-    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.0/SpeedVsLabubu-Linux",
-    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.0/SpeedVsLabubu-Windows.exe"
+    "linux": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.1/SpeedVsLabubu-Linux",
+    "windows": "https://github.com/ayatotenshipj-boop/IshowSpeedGame/releases/download/v1.5.1/SpeedVsLabubu-Windows.exe"
   },
   "files": []
 }

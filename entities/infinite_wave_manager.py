@@ -134,7 +134,8 @@ class InfiniteWaveManager(WaveManager):
             enemies.append(inimigo)
             self.spawn_timer += spawn["interval"]
 
-        if not self.spawn_queue:
+        # Só encerra a wave quando spawn acabou E todos os inimigos morreram.
+        if not self.spawn_queue and not enemies:
             self.wave_active = False
             self.current_wave += 1
             self.wave_timer = INF_INTERVAL

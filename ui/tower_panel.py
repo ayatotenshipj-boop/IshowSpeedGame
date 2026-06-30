@@ -121,8 +121,8 @@ class TowerPanel:
         n = len(self._botoes(tower))
         altura = 112 + n * (BTN_H + BTN_GAP) + MARGEM
 
-        # Posição pixel da torre (fallback: canto direito do mapa).
-        tx = int(getattr(tower, "pixel_x", MAP_RECT.right - PANEL_W - UI_MARGIN))
+        # Posição pixel da torre (tower.x/y são coordenadas de render; fallback: borda direita).
+        tx = int(getattr(tower, "x", MAP_RECT.right - PANEL_W - UI_MARGIN))
 
         # Verifica se cabe à direita do tile; se não, espelha para a esquerda.
         if tx + PANEL_W + UI_MARGIN <= MAP_RECT.right:
@@ -131,7 +131,7 @@ class TowerPanel:
             x = max(MAP_RECT.left, tx - PANEL_W - UI_MARGIN)
 
         # Ancora verticalmente próximo ao tile, clampado para não vazar embaixo.
-        ty = int(getattr(tower, "pixel_y", MAP_RECT.y + 44))
+        ty = int(getattr(tower, "y", MAP_RECT.y + 44))
         y = min(ty, MAP_RECT.bottom - altura - UI_MARGIN)
         y = max(y, MAP_RECT.y + 44)
 
